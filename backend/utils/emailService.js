@@ -42,7 +42,9 @@ const createTransporter = async () => {
   const accessToken = await getAccessToken();
 
   return nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
       type: 'OAuth2',
       user: process.env.EMAIL_USER,
@@ -51,9 +53,11 @@ const createTransporter = async () => {
       refreshToken: process.env.OAUTH_REFRESH_TOKEN,
       accessToken: accessToken
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
+    pool: true,
+    maxConnections: 1
   });
 };
 
@@ -209,8 +213,8 @@ const getCustomEmail = (subject, body, imageUrl = null) => {
   return getEmailTemplate(content);
 };
 
-// Send email function with minimal retry
-const sendEmail = async (to, subject, html, retries = 1) => {
+// Send email function with retry
+const sendEmail = async (to, subject, html, retries = 2) => {
   const mailOptions = {
     from: `"Habit Tracker" <${process.env.EMAIL_USER}>`,
     to,
@@ -220,18 +224,25 @@ const sendEmail = async (to, subject, html, retries = 1) => {
   
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
+      // Clear cached token on retry to get fresh one
+      if (attempt > 1) {
+        cachedAccessToken = null;
+        tokenExpiry = null;
+      }
+      
       const transporter = await createTransporter();
       const result = await transporter.sendMail(mailOptions);
       console.log('Email sent to:', to);
       return { success: true, messageId: result.messageId };
     } catch (error) {
-      console.error('Email error:', error.message);
+      console.error(`Email attempt ${attempt} failed:`, error.message);
       
       if (attempt === retries) {
         return { success: false, error: error.message };
       }
       
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait 2 seconds before retry
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
   
