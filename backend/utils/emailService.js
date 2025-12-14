@@ -1,13 +1,59 @@
 const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
 
-// Create transporter
-const createTransporter = () => {
+// OAuth2 Configuration
+const OAuth2 = google.auth.OAuth2;
+
+// Cache for OAuth2 access token
+let cachedAccessToken = null;
+let tokenExpiry = null;
+
+const getAccessToken = async () => {
+  // Return cached token if still valid (with 5 min buffer)
+  if (cachedAccessToken && tokenExpiry && Date.now() < tokenExpiry - 300000) {
+    return cachedAccessToken;
+  }
+  
+  const oauth2Client = new OAuth2(
+    process.env.OAUTH_CLIENT_ID,
+    process.env.OAUTH_CLIENT_SECRET,
+    'https://developers.google.com/oauthplayground'
+  );
+
+  oauth2Client.setCredentials({
+    refresh_token: process.env.OAUTH_REFRESH_TOKEN
+  });
+
+  const { token } = await oauth2Client.getAccessToken();
+  cachedAccessToken = token;
+  tokenExpiry = Date.now() + 3600000;
+  return token;
+};
+
+const createTransporter = async () => {
+  if (!process.env.OAUTH_CLIENT_ID || !process.env.OAUTH_CLIENT_SECRET || !process.env.OAUTH_REFRESH_TOKEN) {
+    throw new Error('OAuth2 credentials must be set');
+  }
+  
+  if (!process.env.EMAIL_USER) {
+    throw new Error('EMAIL_USER must be set');
+  }
+
+  const accessToken = await getAccessToken();
+
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
+      type: 'OAuth2',
       user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    }
+      clientId: process.env.OAUTH_CLIENT_ID,
+      clientSecret: process.env.OAUTH_CLIENT_SECRET,
+      refreshToken: process.env.OAUTH_REFRESH_TOKEN,
+      accessToken: accessToken
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000
   });
 };
 
@@ -163,25 +209,33 @@ const getCustomEmail = (subject, body, imageUrl = null) => {
   return getEmailTemplate(content);
 };
 
-// Send email function
-const sendEmail = async (to, subject, html) => {
-  try {
-    const transporter = createTransporter();
-    
-    const mailOptions = {
-      from: `"Habit Tracker" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      html
-    };
-    
-    const result = await transporter.sendMail(mailOptions);
-    console.log('Email sent:', result.messageId);
-    return { success: true, messageId: result.messageId };
-  } catch (error) {
-    console.error('Email error:', error);
-    return { success: false, error: error.message };
+// Send email function with minimal retry
+const sendEmail = async (to, subject, html, retries = 1) => {
+  const mailOptions = {
+    from: `"Habit Tracker" <${process.env.EMAIL_USER}>`,
+    to,
+    subject,
+    html
+  };
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const transporter = await createTransporter();
+      const result = await transporter.sendMail(mailOptions);
+      console.log('Email sent to:', to);
+      return { success: true, messageId: result.messageId };
+    } catch (error) {
+      console.error('Email error:', error.message);
+      
+      if (attempt === retries) {
+        return { success: false, error: error.message };
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   }
+  
+  return { success: false, error: 'Failed to send email' };
 };
 
 module.exports = {

@@ -22,16 +22,17 @@
   max-width: 600px;
   width: 100%;
   max-height: 90vh;
-  overflow: hidden;
   box-shadow: 0 25px 50px rgba(16, 185, 129, 0.3);
   animation: slideUp 0.3s ease;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-.subscription-popup .subscription-content {
+.subscription-content {
   overflow-y: auto;
   flex: 1;
+  padding: 32px;
 }
 
 [data-theme="light"] .subscription-popup {
@@ -70,9 +71,7 @@
   margin: 0;
 }
 
-.subscription-content {
-  padding: 32px;
-}
+/* Remove duplicate padding rule since it's now in the flex rule above */
 
 .subscription-pricing {
   text-align: center;
@@ -341,23 +340,28 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  .subscription-overlay {
+    padding: 10px;
+  }
+
   .subscription-popup {
     max-width: 100%;
     margin: 0;
     border-radius: 16px;
+    max-height: 95vh;
   }
 
   .subscription-header {
-    padding: 24px;
+    padding: 20px;
     border-radius: 14px 14px 0 0;
   }
 
   .subscription-header h2 {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .subscription-content {
-    padding: 24px;
+    padding: 20px;
   }
 
   .amount {
@@ -370,5 +374,49 @@
 
   .subscription-actions {
     flex-direction: column;
+  }
+
+  .qr-code {
+    max-width: 150px;
+  }
+}
+
+@media (max-width: 480px) {
+  .subscription-overlay {
+    padding: 5px;
+  }
+
+  .subscription-popup {
+    border-radius: 12px;
+    max-height: 98vh;
+  }
+
+  .subscription-header {
+    padding: 16px;
+  }
+
+  .subscription-header h2 {
+    font-size: 20px;
+  }
+
+  .subscription-content {
+    padding: 16px;
+  }
+
+  .subscription-pricing {
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+
+  .amount {
+    font-size: 40px;
+  }
+
+  .currency {
+    font-size: 24px;
+  }
+
+  .period {
+    font-size: 16px;
   }
 }

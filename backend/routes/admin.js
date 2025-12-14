@@ -275,10 +275,7 @@ router.put('/subscriptions/:id/approve', adminAuth, async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    // Delete payment screenshot from Cloudinary
-    if (user.paymentScreenshot) {
-      await deleteCloudinaryImage(user.paymentScreenshot);
-    }
+    const screenshotUrl = user.paymentScreenshot;
     
     const now = new Date();
     const expiry = new Date(now);
@@ -287,12 +284,17 @@ router.put('/subscriptions/:id/approve', adminAuth, async (req, res) => {
     user.subscriptionStatus = 'active';
     user.subscriptionDate = now;
     user.subscriptionExpiry = expiry;
-    user.paymentScreenshot = null; // Clear the screenshot URL
+    user.paymentScreenshot = null;
     await user.save();
     
-    // Send approval email
+    // Send email before responding
     const emailHtml = getApprovalEmail(user.name);
-    const emailResult = await sendEmail(user.email, 'Your Habit Tracker Subscription is Active!', emailHtml);
+    const emailResult = await sendEmail(user.email, 'Your Habit Tracker Subscription is Active!', emailHtml, 1);
+    
+    // Delete Cloudinary image in background
+    if (screenshotUrl) {
+      deleteCloudinaryImage(screenshotUrl).catch(() => {});
+    }
     
     res.json({ message: 'Subscription approved', user, emailSent: emailResult.success });
   } catch (err) {
@@ -307,19 +309,20 @@ router.put('/subscriptions/:id/reject', adminAuth, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     
     const { reason } = req.body;
-    
-    // Delete payment screenshot from Cloudinary
-    if (user.paymentScreenshot) {
-      await deleteCloudinaryImage(user.paymentScreenshot);
-    }
+    const screenshotUrl = user.paymentScreenshot;
     
     user.subscriptionStatus = 'none';
     user.paymentScreenshot = null;
     await user.save();
     
-    // Send rejection email
+    // Send email before responding
     const emailHtml = getRejectionEmail(user.name, reason);
-    const emailResult = await sendEmail(user.email, 'Subscription Request Update - Habit Tracker', emailHtml);
+    const emailResult = await sendEmail(user.email, 'Subscription Request Update - Habit Tracker', emailHtml, 1);
+    
+    // Delete Cloudinary image in background
+    if (screenshotUrl) {
+      deleteCloudinaryImage(screenshotUrl).catch(() => {});
+    }
     
     res.json({ message: 'Subscription rejected', user, emailSent: emailResult.success });
   } catch (err) {

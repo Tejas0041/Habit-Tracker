@@ -303,23 +303,27 @@ body {
 }
 
 
-/* Toast Notification */
+/* Toast Notification - rendered via portal to body */
 .toast {
   position: fixed;
-  top: 90px;
+  top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 12px 24px;
-  border-radius: 8px;
+  padding: 14px 28px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  z-index: 999999;
+  z-index: 9999999;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   animation: slideDown 0.3s ease;
   font-weight: 500;
-  max-width: 90vw;
+  width: calc(100vw - 32px);
+  max-width: 400px;
+  min-width: 280px;
   text-align: center;
+  pointer-events: none;
 }
 
 .toast.error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
@@ -4105,8 +4109,6 @@ body {
   
   .main-content { padding-top: 190px; }
   
-  .toast { top: 130px; }
-  
   .weekly-overview-card { min-height: auto; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .weekly-overview-card > div { min-width: 650px; }
   .daily-bars { height: 200px; }
@@ -4157,8 +4159,6 @@ body {
   .tabs-bar button { padding: 8px 12px; font-size: 11px; }
   
   .main-content { padding: 16px; padding-top: 180px; }
-  
-  .toast { top: 120px; }
   
   .weekly-overview-card { min-height: auto; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .weekly-overview-card > div { min-width: 600px; }
@@ -4261,8 +4261,6 @@ body {
   .overview-label-cell { width: 50px; }
   
   .main-content { padding: 12px; padding-top: 175px; }
-  
-  .toast { top: 110px; }
   
   .page-header h2 { font-size: 16px; }
   .page-subtitle { font-size: 12px; }

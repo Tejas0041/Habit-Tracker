@@ -119,11 +119,14 @@ const Popup = ({ isOpen, title, message, onConfirm, onCancel, confirmText = 'Con
 const Toast = ({ show, message, type = 'error' }) => {
   if (!show) return null;
   const icon = type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
-  return (<div className={`toast ${type}`}><span className="toast-icon">{icon}</span>{message}</div>);
+  return ReactDOM.createPortal(
+    <div className={`toast ${type}`}><span className="toast-icon">{icon}</span>{message}</div>,
+    document.body
+  );
 };
 
 const Loader = ({ message = 'Loading...', subtext = '' }) => {
-  return (
+  return ReactDOM.createPortal(
     <div className="loader-overlay">
       <div className="loader-container">
         <div className="loader">
@@ -134,7 +137,8 @@ const Loader = ({ message = 'Loading...', subtext = '' }) => {
         <div className="loader-text">{message}</div>
         {subtext && <div className="loader-subtext">{subtext}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -642,11 +646,24 @@ function App() {
     setUser(null);
     setHabits([]);
     setTracking({});
+    setSleepData([]);
+    setSubscriptionStatus('none');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToast({ show: true, message: message || 'You have been logged out', type: 'error' });
     setTimeout(() => setToast({ show: false, message: '', type: 'error' }), 5000);
   }, []);
+
+  // Set up global API error handler for security errors
+  useEffect(() => {
+    api.setGlobalErrorHandler((error) => {
+      if (error.forceLogout) {
+        forceLogout(error.message || 'Session expired. Please login again.');
+      } else if (error.subscriptionError) {
+        forceLogout(error.message || 'Subscription issue. Please login again.');
+      }
+    });
+  }, [forceLogout]);
 
   const loadData = useCallback(async () => {
     if (!token) return;
@@ -660,6 +677,10 @@ function App() {
         api.get(`/tracking/${year}/${month}`, token),
         api.get('/auth/profile', token)
       ]);
+      
+      // Check if any response is null (security error handled by global handler)
+      if (!habitsRes || !trackingRes) return;
+      
       setHabits(habitsRes);
       const trackMap = {}; 
       trackingRes.forEach(t => { trackMap[`${t.habitId}-${t.date}`] = true; }); 
@@ -723,6 +744,8 @@ function App() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { loadSleepData(); }, [loadSleepData]);
+  
+  // Verify token and user status on app load
   useEffect(() => { 
     const stored = localStorage.getItem('user'); 
     if (stored) {
@@ -730,6 +753,26 @@ function App() {
       setUser(parsedUser);
       setSubscriptionStatus(parsedUser.subscriptionStatus || 'none');
     }
+    
+    // Verify token is still valid on app load
+    const verifyToken = async () => {
+      const storedToken = localStorage.getItem('token');
+      if (!storedToken) return;
+      
+      try {
+        const profile = await api.get('/auth/profile', storedToken);
+        if (profile) {
+          setUser(profile);
+          setSubscriptionStatus(profile.subscriptionStatus || 'none');
+          localStorage.setItem('user', JSON.stringify(profile));
+        }
+      } catch (err) {
+        // Error handler will take care of logout if needed
+        console.error('Token verification failed:', err);
+      }
+    };
+    
+    verifyToken();
   }, []);
   useEffect(() => { const h = (e) => { if (!e.target.closest('.month-selector')) { setShowMonthDropdown(false); setShowYearInput(false); } }; document.addEventListener('click', h); return () => document.removeEventListener('click', h); }, []);
 
@@ -825,19 +868,72 @@ function App() {
     const date = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`; 
     const key = `${habitId}-${date}`; 
     const newCompleted = !tracking[key];
+    const previousState = tracking[key];
+    
+    // Optimistically update UI
     setTracking(prev => ({ ...prev, [key]: newCompleted })); 
-    await api.post('/tracking/toggle', { habitId, date, completed: newCompleted }, token); 
-    // Reload streak for this habit (month-specific)
+    
     try {
+      const result = await api.post('/tracking/toggle', { habitId, date, completed: newCompleted }, token);
+      // If null, security error was handled by global handler - don't continue
+      if (result === null) {
+        setTracking(prev => ({ ...prev, [key]: previousState }));
+        return;
+      }
+      // Reload streak for this habit (month-specific)
       const updatedStreak = await api.get(`/tracking/streaks/${habitId}/${year}/${month}`, token);
-      setStreaks(prev => ({ ...prev, [habitId]: updatedStreak }));
+      if (updatedStreak) {
+        setStreaks(prev => ({ ...prev, [habitId]: updatedStreak }));
+      }
     } catch (err) {
-      console.error('Failed to update streak:', err);
+      // Revert optimistic update on error
+      setTracking(prev => ({ ...prev, [key]: previousState }));
+      console.error('Failed to toggle habit:', err);
     }
   };
-  const addHabit = async () => { if (!newHabit.name.trim()) { showToast('Enter habit name', 'error'); return; } await api.post('/habits', newHabit, token); setNewHabit({ name: '', goal: 30 }); setShowModal(false); loadData(); showToast('Habit added!', 'success'); };
-  const updateGoal = async (habitId, goal) => { const g = parseInt(goal) || 0; setHabits(prev => prev.map(h => h._id === habitId ? { ...h, goal: g } : h)); await api.put(`/habits/${habitId}/goal`, { year, month, goal: g }, token); };
-  const deleteHabit = (habitId) => { const h = habits.find(x => x._id === habitId); showPopup('Delete', `Delete "${h?.name}"?`, async () => { await api.delete(`/habits/${habitId}`, token); loadData(); closePopup(); showToast('Deleted', 'success'); }, closePopup, 'warning'); };
+  const addHabit = async () => { 
+    if (!newHabit.name.trim()) { showToast('Enter habit name', 'error'); return; } 
+    try {
+      const result = await api.post('/habits', newHabit, token);
+      if (result === null) return; // Security error handled by global handler
+      setNewHabit({ name: '', goal: 30 }); 
+      setShowModal(false); 
+      loadData(); 
+      showToast('Habit added!', 'success'); 
+    } catch (err) {
+      console.error('Failed to add habit:', err);
+    }
+  };
+  
+  const updateGoal = async (habitId, goal) => { 
+    const g = parseInt(goal) || 0; 
+    const previousHabits = [...habits];
+    setHabits(prev => prev.map(h => h._id === habitId ? { ...h, goal: g } : h)); 
+    try {
+      const result = await api.put(`/habits/${habitId}/goal`, { year, month, goal: g }, token);
+      if (result === null) {
+        setHabits(previousHabits); // Revert on security error
+      }
+    } catch (err) {
+      setHabits(previousHabits);
+      console.error('Failed to update goal:', err);
+    }
+  };
+  
+  const deleteHabit = (habitId) => { 
+    const h = habits.find(x => x._id === habitId); 
+    showPopup('Delete', `Delete "${h?.name}"?`, async () => { 
+      try {
+        await api.delete(`/habits/${habitId}`, token); 
+        loadData(); 
+        closePopup(); 
+        showToast('Deleted', 'success'); 
+      } catch (err) {
+        console.error('Failed to delete habit:', err);
+        closePopup();
+      }
+    }, closePopup, 'warning'); 
+  };
   
   const enterEditMode = () => {
     setEditingHabits(habits.map(h => ({ ...h, newName: h.name, toDelete: false })));
