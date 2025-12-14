@@ -106,7 +106,7 @@ const Popup = ({ isOpen, title, message, onConfirm, onCancel, confirmText = 'Con
       <div className="popup">
         <div className={`popup-icon ${type}`}>{type === 'warning' ? '⚠️' : type === 'success' ? '✅' : type === 'info' ? 'ℹ️' : '❓'}</div>
         <h3 className="popup-title">{title}</h3>
-        <p className="popup-message" style={{ whiteSpace: 'pre-line', textAlign: 'left' }}>{message}</p>
+        <p className="popup-message" style={{ whiteSpace: 'pre-line' }}>{message}</p>
         <div className="popup-buttons">
           {onCancel && <button className="popup-btn cancel" onClick={onCancel}>{cancelText}</button>}
           <button className="popup-btn confirm" onClick={onConfirm}>{confirmText}</button>
@@ -748,15 +748,21 @@ function App() {
   // Verify token and user status on app load
   useEffect(() => { 
     const stored = localStorage.getItem('user'); 
-    if (stored) {
+    const storedToken = localStorage.getItem('token');
+    
+    if (stored && storedToken) {
       const parsedUser = JSON.parse(stored);
       setUser(parsedUser);
       setSubscriptionStatus(parsedUser.subscriptionStatus || 'none');
+      
+      // If user has no subscription, show the popup immediately
+      if (parsedUser.subscriptionStatus === 'none') {
+        setShowSubscriptionPopup(true);
+      }
     }
     
     // Verify token is still valid on app load
     const verifyToken = async () => {
-      const storedToken = localStorage.getItem('token');
       if (!storedToken) return;
       
       try {
@@ -765,6 +771,13 @@ function App() {
           setUser(profile);
           setSubscriptionStatus(profile.subscriptionStatus || 'none');
           localStorage.setItem('user', JSON.stringify(profile));
+          
+          // Show subscription popup if user still has no subscription
+          if (profile.subscriptionStatus === 'none') {
+            setShowSubscriptionPopup(true);
+          } else {
+            setShowSubscriptionPopup(false);
+          }
         }
       } catch (err) {
         // Error handler will take care of logout if needed
@@ -1333,6 +1346,24 @@ function App() {
     </ThemeContext.Provider>
   );
   if (showProfile) return (<ThemeContext.Provider value={{ theme, toggleTheme }}><div className="app" data-theme={theme}><Toast {...toast} /><ProfilePage user={user} token={token} onBack={() => setShowProfile(false)} onUpdateUser={handleUpdateUser} showToast={showToast} /></div></ThemeContext.Provider>);
+  
+  // Show only subscription popup if user has no subscription (don't show dashboard)
+  if (subscriptionStatus === 'none' && showSubscriptionPopup) {
+    return (
+      <ThemeContext.Provider value={{ theme, toggleTheme }}>
+        <div className="app" data-theme={theme}>
+          <Toast {...toast} />
+          <SubscriptionPopup 
+            isOpen={true} 
+            onClose={() => {}}
+            onSubmit={handleSubscriptionSubmit}
+            onSkip={handleSubscriptionSkip}
+            user={user}
+          />
+        </div>
+      </ThemeContext.Provider>
+    );
+  }
   
   if (showHome) return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

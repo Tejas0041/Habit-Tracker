@@ -45,8 +45,6 @@ const AdminPanel = () => {
   const [pendingSubscriptions, setPendingSubscriptions] = useState([]);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
-  const [rejectPopup, setRejectPopup] = useState({ show: false, userId: null, userName: '', reason: '', loading: false });
-  const [emailPopup, setEmailPopup] = useState({ show: false, userId: null, userName: '', userEmail: '', subject: '', body: '', imageUrl: '', sending: false });
   const [processingSubscription, setProcessingSubscription] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const searchTimeout = useRef(null);
@@ -162,63 +160,17 @@ const AdminPanel = () => {
     });
   };
 
-  const rejectSubscription = (userId, userName) => {
-    setRejectPopup({ show: true, userId, userName, reason: '' });
-  };
-
-  const handleRejectConfirm = async () => {
-    if (!rejectPopup.reason.trim()) {
-      showToast('Please provide a reason for rejection', 'error');
-      return;
-    }
-    setRejectPopup(prev => ({ ...prev, loading: true }));
+  const rejectSubscription = async (userId) => {
+    if (processingSubscription) return;
+    setProcessingSubscription(userId);
     try {
-      await apiCall(`/admin/subscriptions/${rejectPopup.userId}/reject`, { 
-        method: 'PUT',
-        body: JSON.stringify({ reason: rejectPopup.reason })
-      });
-      showToast('Subscription rejected & email sent', 'success');
+      await apiCall(`/admin/subscriptions/${userId}/reject`, { method: 'PUT' });
+      showToast('Subscription rejected', 'success');
       loadPendingSubscriptions();
-      setRejectPopup({ show: false, userId: null, userName: '', reason: '', loading: false });
     } catch (err) {
       showToast(err.message, 'error');
-      setRejectPopup(prev => ({ ...prev, loading: false }));
-    }
-  };
-
-  const openEmailPopup = (user) => {
-    setEmailPopup({ 
-      show: true, 
-      userId: user._id, 
-      userName: user.name, 
-      userEmail: user.email,
-      subject: '', 
-      body: '', 
-      imageUrl: '',
-      sending: false 
-    });
-  };
-
-  const handleSendEmail = async () => {
-    if (!emailPopup.subject.trim() || !emailPopup.body.trim()) {
-      showToast('Subject and body are required', 'error');
-      return;
-    }
-    setEmailPopup(prev => ({ ...prev, sending: true }));
-    try {
-      await apiCall(`/admin/users/${emailPopup.userId}/email`, { 
-        method: 'POST',
-        body: JSON.stringify({ 
-          subject: emailPopup.subject, 
-          body: emailPopup.body,
-          imageUrl: emailPopup.imageUrl || null
-        })
-      });
-      showToast('Email sent successfully!', 'success');
-      setEmailPopup({ show: false, userId: null, userName: '', userEmail: '', subject: '', body: '', imageUrl: '', sending: false });
-    } catch (err) {
-      showToast(err.message, 'error');
-      setEmailPopup(prev => ({ ...prev, sending: false }));
+    } finally {
+      setProcessingSubscription(null);
     }
   };
 
@@ -876,7 +828,7 @@ const AdminPanel = () => {
                       </button>
                       <button 
                         className="admin-btn reject" 
-                        onClick={() => rejectSubscription(user._id, user.name)}
+                        onClick={() => rejectSubscription(user._id)}
                         disabled={processingSubscription === user._id}
                       >
                         Reject
@@ -899,82 +851,6 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {/* Rejection Reason Popup */}
-        {rejectPopup.show && (
-          <div className="admin-popup-overlay">
-            <div className="admin-popup admin-reject-popup">
-              <div className="admin-popup-icon reject">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </div>
-              <h3>Reject Subscription</h3>
-              <p className="admin-popup-subtitle">Rejecting subscription for <strong>{rejectPopup.userName}</strong></p>
-              <div className="admin-popup-form">
-                <label>Reason for Rejection <span className="required">*</span></label>
-                <textarea 
-                  placeholder="Enter the reason for rejection (e.g., Invalid payment screenshot, Amount mismatch, etc.)"
-                  value={rejectPopup.reason}
-                  onChange={e => setRejectPopup(prev => ({ ...prev, reason: e.target.value }))}
-                  rows={4}
-                />
-                <p className="admin-popup-note">⚠️ This reason will be sent to the user via email.</p>
-              </div>
-              <div className="admin-popup-buttons">
-                <button className="admin-btn secondary" onClick={() => setRejectPopup({ show: false, userId: null, userName: '', reason: '', loading: false })} disabled={rejectPopup.loading}>Cancel</button>
-                <button className="admin-btn danger" onClick={handleRejectConfirm} disabled={rejectPopup.loading}>
-                  {rejectPopup.loading ? <><span className="admin-spinner"></span> Sending...</> : 'Reject & Send Email'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Email User Popup */}
-        {emailPopup.show && (
-          <div className="admin-popup-overlay">
-            <div className="admin-popup admin-email-popup">
-              <div className="admin-popup-icon email">✉️</div>
-              <h3>Send Email</h3>
-              <p className="admin-popup-subtitle">
-                To: <strong>{emailPopup.userName}</strong> ({emailPopup.userEmail})
-              </p>
-              <div className="admin-popup-form">
-                <label>Subject <span className="required">*</span></label>
-                <input 
-                  type="text"
-                  placeholder="Enter email subject"
-                  value={emailPopup.subject}
-                  onChange={e => setEmailPopup(prev => ({ ...prev, subject: e.target.value }))}
-                />
-                
-                <label>Message Body <span className="required">*</span></label>
-                <textarea 
-                  placeholder="Enter your message here..."
-                  value={emailPopup.body}
-                  onChange={e => setEmailPopup(prev => ({ ...prev, body: e.target.value }))}
-                  rows={6}
-                />
-                
-                <label>Image URL (Optional)</label>
-                <input 
-                  type="text"
-                  placeholder="https://example.com/image.png"
-                  value={emailPopup.imageUrl}
-                  onChange={e => setEmailPopup(prev => ({ ...prev, imageUrl: e.target.value }))}
-                />
-                <p className="admin-popup-note">💡 Paste a direct image URL to include in the email.</p>
-              </div>
-              <div className="admin-popup-buttons">
-                <button className="admin-btn secondary" onClick={() => setEmailPopup({ show: false, userId: null, userName: '', userEmail: '', subject: '', body: '', imageUrl: '', sending: false })} disabled={emailPopup.sending}>Cancel</button>
-                <button className="admin-btn primary" onClick={handleSendEmail} disabled={emailPopup.sending}>
-                  {emailPopup.sending ? <><span className="admin-spinner"></span> Sending...</> : '📤 Send Email'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );

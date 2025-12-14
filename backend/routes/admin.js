@@ -4,7 +4,6 @@ const User = require('../models/User');
 const Habit = require('../models/Habit');
 const Tracking = require('../models/Tracking');
 const cloudinary = require('cloudinary').v2;
-const { sendEmail, getApprovalEmail, getRejectionEmail, getCustomEmail } = require('../utils/emailService');
 
 // Configure Cloudinary
 cloudinary.config({
@@ -287,16 +286,12 @@ router.put('/subscriptions/:id/approve', adminAuth, async (req, res) => {
     user.paymentScreenshot = null;
     await user.save();
     
-    // Send email before responding
-    const emailHtml = getApprovalEmail(user.name);
-    const emailResult = await sendEmail(user.email, 'Your Habit Tracker Subscription is Active!', emailHtml, 1);
-    
     // Delete Cloudinary image in background
     if (screenshotUrl) {
       deleteCloudinaryImage(screenshotUrl).catch(() => {});
     }
     
-    res.json({ message: 'Subscription approved', user, emailSent: emailResult.success });
+    res.json({ message: 'Subscription approved', user });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -308,48 +303,18 @@ router.put('/subscriptions/:id/reject', adminAuth, async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    const { reason } = req.body;
     const screenshotUrl = user.paymentScreenshot;
     
     user.subscriptionStatus = 'none';
     user.paymentScreenshot = null;
     await user.save();
     
-    // Send email before responding
-    const emailHtml = getRejectionEmail(user.name, reason);
-    const emailResult = await sendEmail(user.email, 'Subscription Request Update - Habit Tracker', emailHtml, 1);
-    
     // Delete Cloudinary image in background
     if (screenshotUrl) {
       deleteCloudinaryImage(screenshotUrl).catch(() => {});
     }
     
-    res.json({ message: 'Subscription rejected', user, emailSent: emailResult.success });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Send custom email to user
-router.post('/users/:id/email', adminAuth, async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    
-    const { subject, body, imageUrl } = req.body;
-    
-    if (!subject || !body) {
-      return res.status(400).json({ error: 'Subject and body are required' });
-    }
-    
-    const emailHtml = getCustomEmail(subject, body, imageUrl);
-    const emailResult = await sendEmail(user.email, subject, emailHtml);
-    
-    if (emailResult.success) {
-      res.json({ message: 'Email sent successfully', messageId: emailResult.messageId });
-    } else {
-      res.status(500).json({ error: 'Failed to send email: ' + emailResult.error });
-    }
+    res.json({ message: 'Subscription rejected', user });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
