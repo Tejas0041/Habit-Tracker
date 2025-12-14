@@ -15,6 +15,9 @@ const sleepRoutes = require('./routes/sleep');
 
 const app = express();
 
+// Trust proxy for Render/Heroku/etc (required for rate limiting behind reverse proxy)
+app.set('trust proxy', 1);
+
 // Security: Set various HTTP headers
 app.use(helmet({
   contentSecurityPolicy: false, // Disable for API

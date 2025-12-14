@@ -43,8 +43,9 @@ const createTransporter = async () => {
 
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
+    requireTLS: true,
     auth: {
       type: 'OAuth2',
       user: process.env.EMAIL_USER,
@@ -53,11 +54,9 @@ const createTransporter = async () => {
       refreshToken: process.env.OAUTH_REFRESH_TOKEN,
       accessToken: accessToken
     },
-    connectionTimeout: 30000,
+    connectionTimeout: 60000,
     greetingTimeout: 30000,
-    socketTimeout: 60000,
-    pool: true,
-    maxConnections: 1
+    socketTimeout: 120000
   });
 };
 
