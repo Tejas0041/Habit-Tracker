@@ -5,6 +5,9 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const habitRoutes = require('./routes/habits');
 const trackingRoutes = require('./routes/tracking');
+const adminRoutes = require('./routes/admin');
+const subscriptionRoutes = require('./routes/subscription');
+const sleepRoutes = require('./routes/sleep');
 
 const app = express();
 
@@ -18,6 +21,9 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/habit-tra
 app.use('/api/auth', authRoutes);
 app.use('/api/habits', habitRoutes);
 app.use('/api/tracking', trackingRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/sleep', sleepRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 

@@ -1,0 +1,374 @@
+/* Subscription Popup Styles */
+.subscription-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(8px);
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.subscription-popup {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border: 2px solid #10b981;
+  border-radius: 24px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 25px 50px rgba(16, 185, 129, 0.3);
+  animation: slideUp 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.subscription-popup .subscription-content {
+  overflow-y: auto;
+  flex: 1;
+}
+
+[data-theme="light"] .subscription-popup {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-color: #10b981;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.subscription-header {
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  padding: 32px;
+  text-align: center;
+  border-radius: 22px 22px 0 0;
+}
+
+.subscription-header h2 {
+  color: white;
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+}
+
+.subscription-subtitle {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 15px;
+  margin: 0;
+}
+
+.subscription-content {
+  padding: 32px;
+}
+
+.subscription-pricing {
+  text-align: center;
+  margin-bottom: 32px;
+  padding: 24px;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 16px;
+  border: 2px solid rgba(16, 185, 129, 0.3);
+}
+
+.price-tag {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.currency {
+  font-size: 32px;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.amount {
+  font-size: 64px;
+  font-weight: 800;
+  color: #10b981;
+  line-height: 1;
+}
+
+.period {
+  font-size: 20px;
+  color: #64748b;
+}
+
+.price-description {
+  color: #94a3b8;
+  font-size: 14px;
+  margin: 0;
+}
+
+.subscription-features {
+  margin-bottom: 32px;
+}
+
+.subscription-features h3 {
+  color: #f1f5f9;
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+
+[data-theme="light"] .subscription-features h3 {
+  color: #0f172a;
+}
+
+.subscription-features ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.subscription-features li {
+  color: #cbd5e1;
+  font-size: 14px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+[data-theme="light"] .subscription-features li {
+  color: #475569;
+  background: #f8fafc;
+}
+
+.payment-section {
+  margin-bottom: 24px;
+}
+
+.payment-section h3 {
+  color: #f1f5f9;
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+
+[data-theme="light"] .payment-section h3 {
+  color: #0f172a;
+}
+
+.payment-section ol {
+  color: #94a3b8;
+  font-size: 14px;
+  padding-left: 20px;
+  margin-bottom: 24px;
+}
+
+.payment-section li {
+  margin-bottom: 8px;
+}
+
+.qr-code-section {
+  text-align: center;
+  margin: 24px 0;
+  padding: 24px;
+  background: white;
+  border-radius: 16px;
+}
+
+.qr-code {
+  max-width: 200px;
+  height: auto;
+  border-radius: 12px;
+}
+
+.qr-placeholder {
+  padding: 40px;
+  background: #f1f5f9;
+  border-radius: 12px;
+}
+
+.qr-placeholder p {
+  margin: 8px 0;
+  color: #64748b;
+}
+
+.upi-id {
+  font-weight: 600;
+  color: #10b981;
+  font-size: 16px;
+}
+
+.upload-section {
+  margin-top: 24px;
+}
+
+.upload-label {
+  display: block;
+  cursor: pointer;
+}
+
+.upload-label input[type="file"] {
+  display: none;
+}
+
+.upload-button {
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  color: white;
+  border-radius: 12px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 15px;
+  transition: all 0.2s;
+}
+
+.upload-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+}
+
+.upload-label input:disabled + .upload-button {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.preview-section {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.preview-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 12px;
+  border: 2px solid #10b981;
+  margin-bottom: 8px;
+}
+
+.preview-text {
+  color: #10b981;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.subscription-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.subscribe-btn,
+.skip-btn {
+  width: 100%;
+  padding: 16px 24px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.subscribe-btn {
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  color: white;
+}
+
+.subscribe-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+}
+
+.subscribe-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.skip-btn {
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .skip-btn {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.skip-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+}
+
+.subscription-footer {
+  text-align: center;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] .subscription-footer {
+  border-top-color: #e2e8f0;
+}
+
+.subscription-footer p {
+  color: #64748b;
+  font-size: 13px;
+  margin: 0;
+}
+
+.subscription-footer a {
+  color: #10b981;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.subscription-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .subscription-popup {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 16px;
+  }
+
+  .subscription-header {
+    padding: 24px;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .subscription-header h2 {
+    font-size: 24px;
+  }
+
+  .subscription-content {
+    padding: 24px;
+  }
+
+  .amount {
+    font-size: 48px;
+  }
+
+  .subscription-features ul {
+    grid-template-columns: 1fr;
+  }
+
+  .subscription-actions {
+    flex-direction: column;
+  }
+}

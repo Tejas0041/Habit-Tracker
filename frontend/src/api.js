@@ -1,16 +1,22 @@
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+const handleResponse = async (res) => {
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    const error = new Error(errorData.message || errorData.error || 'Request failed');
+    error.code = errorData.error;
+    error.status = res.status;
+    throw error;
+  }
+  return res.json();
+};
+
 const api = {
   async get(endpoint, token) {
     const res = await fetch(`${API_URL}${endpoint}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(`API GET ${endpoint} failed:`, res.status, text);
-      throw new Error(`Request failed: ${res.status}`);
-    }
-    return res.json();
+    return handleResponse(res);
   },
 
   async post(endpoint, data, token) {
@@ -21,8 +27,7 @@ const api = {
       headers,
       body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error('Request failed');
-    return res.json();
+    return handleResponse(res);
   },
 
   async put(endpoint, data, token) {
@@ -31,8 +36,7 @@ const api = {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error('Request failed');
-    return res.json();
+    return handleResponse(res);
   },
 
   async delete(endpoint, token) {
@@ -40,8 +44,7 @@ const api = {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
-    if (!res.ok) throw new Error('Request failed');
-    return res.json();
+    return handleResponse(res);
   }
 };
 

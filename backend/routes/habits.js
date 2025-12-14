@@ -2,6 +2,7 @@ const express = require('express');
 const Habit = require('../models/Habit');
 const Tracking = require('../models/Tracking');
 const MonthlyGoal = require('../models/MonthlyGoal');
+const MonthlyHabitName = require('../models/MonthlyHabitName');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -48,13 +49,25 @@ router.get('/', auth, async (req, res) => {
         month: parseInt(month)
       });
       
+      // Get monthly names for this period
+      const monthlyNames = await MonthlyHabitName.find({
+        userId: req.userId,
+        year: parseInt(year),
+        month: parseInt(month)
+      });
+      
       const goalMap = {};
       monthlyGoals.forEach(mg => { goalMap[mg.habitId.toString()] = mg.goal; });
       
-      // Merge goals with habits
+      const nameMap = {};
+      monthlyNames.forEach(mn => { nameMap[mn.habitId.toString()] = mn.name; });
+      
+      // Merge goals and names with habits
       const habitsWithGoals = habits.map(h => ({
         ...h.toObject(),
-        goal: goalMap[h._id.toString()] !== undefined ? goalMap[h._id.toString()] : h.goal
+        goal: goalMap[h._id.toString()] !== undefined ? goalMap[h._id.toString()] : h.goal,
+        name: nameMap[h._id.toString()] !== undefined ? nameMap[h._id.toString()] : h.name,
+        originalName: h.name // Keep original name for reference
       }));
       
       return res.json(habitsWithGoals);
@@ -117,6 +130,91 @@ router.put('/:id/goal', auth, async (req, res) => {
     await Habit.findByIdAndUpdate(habitId, { goal });
     
     res.json({ message: 'Goal updated', goal });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Update name for a specific month
+router.put('/:id/name', auth, async (req, res) => {
+  try {
+    const { year, month, name, isCurrentMonth } = req.body;
+    const habitId = req.params.id;
+    const yearNum = parseInt(year);
+    const monthNum = parseInt(month);
+    
+    // Verify habit belongs to user
+    const habit = await Habit.findOne({ _id: habitId, userId: req.userId });
+    if (!habit) return res.status(404).json({ error: 'Habit not found' });
+    
+    const oldName = habit.name;
+    
+    if (isCurrentMonth) {
+      // For current month: 
+      // 1. First, preserve the old name for all PAST months that don't have an override
+      // 2. Then update the habit's default name (affects current and future months)
+      
+      // Get all existing monthly name overrides for this habit
+      const existingOverrides = await MonthlyHabitName.find({
+        userId: req.userId,
+        habitId
+      });
+      const overrideMap = {};
+      existingOverrides.forEach(o => {
+        overrideMap[`${o.year}-${o.month}`] = true;
+      });
+      
+      // Create overrides for past months that don't have one (to preserve old name)
+      const habitCreatedAt = new Date(habit.createdAt);
+      const currentDate = new Date(yearNum, monthNum - 1, 1);
+      
+      const bulkOps = [];
+      let checkDate = new Date(habitCreatedAt.getFullYear(), habitCreatedAt.getMonth(), 1);
+      
+      while (checkDate < currentDate) {
+        const checkYear = checkDate.getFullYear();
+        const checkMonth = checkDate.getMonth() + 1;
+        const key = `${checkYear}-${checkMonth}`;
+        
+        // Only create override if one doesn't exist for this past month
+        if (!overrideMap[key]) {
+          bulkOps.push({
+            updateOne: {
+              filter: { userId: req.userId, habitId, year: checkYear, month: checkMonth },
+              update: { $setOnInsert: { name: oldName } },
+              upsert: true
+            }
+          });
+        }
+        
+        // Move to next month
+        checkDate.setMonth(checkDate.getMonth() + 1);
+      }
+      
+      if (bulkOps.length > 0) {
+        await MonthlyHabitName.bulkWrite(bulkOps);
+      }
+      
+      // Now update the habit's default name (for current and future)
+      await Habit.findByIdAndUpdate(habitId, { name });
+      
+      // Remove any monthly name override for current month since we're using the default
+      await MonthlyHabitName.deleteOne({
+        userId: req.userId,
+        habitId,
+        year: yearNum,
+        month: monthNum
+      });
+    } else {
+      // For past months: only create/update monthly name override (doesn't affect other months)
+      await MonthlyHabitName.findOneAndUpdate(
+        { userId: req.userId, habitId, year: yearNum, month: monthNum },
+        { name },
+        { upsert: true, new: true }
+      );
+    }
+    
+    res.json({ message: 'Name updated', name });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

@@ -1,0 +1,983 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+const AdminPanel = () => {
+  const [adminToken, setAdminToken] = useState(localStorage.getItem('adminToken'));
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [dashboard, setDashboard] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [usersPagination, setUsersPagination] = useState({ total: 0, pages: 1, currentPage: 1 });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [confirmPopup, setConfirmPopup] = useState({ show: false, title: '', message: '', onConfirm: null });
+  const [theme, setTheme] = useState(localStorage.getItem('adminTheme') || 'dark');
+  const [chartReady, setChartReady] = useState(false);
+  const [pendingSubscriptions, setPendingSubscriptions] = useState([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [rejectPopup, setRejectPopup] = useState({ show: false, userId: null, userName: '', reason: '', loading: false });
+  const [emailPopup, setEmailPopup] = useState({ show: false, userId: null, userName: '', userEmail: '', subject: '', body: '', imageUrl: '', sending: false });
+  const [processingSubscription, setProcessingSubscription] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const searchTimeout = useRef(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('adminTheme', theme);
+  }, [theme]);
+
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  }, []);
+
+  const apiCall = useCallback(async (endpoint, options = {}) => {
+    const res = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`,
+        ...options.headers
+      }
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Request failed');
+    }
+    return res.json();
+  }, [adminToken]);
+
+  const loadDashboard = useCallback(async () => {
+    if (!adminToken) return;
+    setChartReady(false);
+    try {
+      const data = await apiCall('/admin/dashboard');
+      setDashboard(data);
+      // Simulate chart rendering delay
+      setTimeout(() => setChartReady(true), 100);
+    } catch (err) {
+      if (err.message === 'Invalid token') {
+        localStorage.removeItem('adminToken');
+        setAdminToken(null);
+      }
+    }
+  }, [adminToken, apiCall]);
+
+  const loadUsers = useCallback(async (page = 1) => {
+    if (!adminToken) return;
+    setLoading(true);
+    try {
+      const data = await apiCall(`/admin/users?page=${page}&limit=10&search=${searchQuery}&status=${statusFilter}`);
+      setUsers(data.users);
+      setUsersPagination({ total: data.total, pages: data.pages, currentPage: data.currentPage });
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [adminToken, apiCall, searchQuery, statusFilter, showToast]);
+
+  const loadPendingSubscriptions = useCallback(async () => {
+    if (!adminToken) return;
+    setSubscriptionsLoading(true);
+    try {
+      const data = await apiCall('/admin/subscriptions/pending');
+      setPendingSubscriptions(data.users || []);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSubscriptionsLoading(false);
+    }
+  }, [adminToken, apiCall, showToast]);
+
+  const [reloading, setReloading] = useState(false);
+  
+  const handleReload = async () => {
+    setReloading(true);
+    try {
+      if (activeTab === 'dashboard') {
+        await loadDashboard();
+      } else if (activeTab === 'users') {
+        await loadUsers(usersPagination.currentPage);
+      } else if (activeTab === 'subscriptions') {
+        await loadPendingSubscriptions();
+      }
+      showToast('Data refreshed!', 'success');
+    } catch (err) {
+      showToast('Failed to refresh', 'error');
+    } finally {
+      setReloading(false);
+    }
+  };
+
+  const approveSubscription = async (userId, userName) => {
+    setConfirmPopup({
+      show: true,
+      title: 'Approve Subscription',
+      message: `Are you sure you want to approve subscription for "${userName}"? They will get 1 year access.`,
+      onConfirm: async () => {
+        setConfirmPopup({ show: false, title: '', message: '', onConfirm: null });
+        setProcessingSubscription(userId);
+        try {
+          await apiCall(`/admin/subscriptions/${userId}/approve`, { method: 'PUT' });
+          showToast('Subscription approved successfully!', 'success');
+          loadPendingSubscriptions();
+          loadDashboard();
+        } catch (err) {
+          showToast(err.message, 'error');
+        } finally {
+          setProcessingSubscription(null);
+        }
+      }
+    });
+  };
+
+  const rejectSubscription = (userId, userName) => {
+    setRejectPopup({ show: true, userId, userName, reason: '' });
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!rejectPopup.reason.trim()) {
+      showToast('Please provide a reason for rejection', 'error');
+      return;
+    }
+    setRejectPopup(prev => ({ ...prev, loading: true }));
+    try {
+      await apiCall(`/admin/subscriptions/${rejectPopup.userId}/reject`, { 
+        method: 'PUT',
+        body: JSON.stringify({ reason: rejectPopup.reason })
+      });
+      showToast('Subscription rejected & email sent', 'success');
+      loadPendingSubscriptions();
+      setRejectPopup({ show: false, userId: null, userName: '', reason: '', loading: false });
+    } catch (err) {
+      showToast(err.message, 'error');
+      setRejectPopup(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const openEmailPopup = (user) => {
+    setEmailPopup({ 
+      show: true, 
+      userId: user._id, 
+      userName: user.name, 
+      userEmail: user.email,
+      subject: '', 
+      body: '', 
+      imageUrl: '',
+      sending: false 
+    });
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailPopup.subject.trim() || !emailPopup.body.trim()) {
+      showToast('Subject and body are required', 'error');
+      return;
+    }
+    setEmailPopup(prev => ({ ...prev, sending: true }));
+    try {
+      await apiCall(`/admin/users/${emailPopup.userId}/email`, { 
+        method: 'POST',
+        body: JSON.stringify({ 
+          subject: emailPopup.subject, 
+          body: emailPopup.body,
+          imageUrl: emailPopup.imageUrl || null
+        })
+      });
+      showToast('Email sent successfully!', 'success');
+      setEmailPopup({ show: false, userId: null, userName: '', userEmail: '', subject: '', body: '', imageUrl: '', sending: false });
+    } catch (err) {
+      showToast(err.message, 'error');
+      setEmailPopup(prev => ({ ...prev, sending: false }));
+    }
+  };
+
+  // Debounced search
+  useEffect(() => {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 500);
+    return () => {
+      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    };
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (adminToken) {
+      loadDashboard();
+      loadPendingSubscriptions();
+    }
+  }, [adminToken, loadDashboard, loadPendingSubscriptions]);
+
+  useEffect(() => {
+    if (adminToken) {
+      loadUsers(1);
+    }
+  }, [adminToken, searchQuery, statusFilter]);
+
+  useEffect(() => {
+    if (adminToken && activeTab === 'subscriptions') {
+      loadPendingSubscriptions();
+    }
+  }, [adminToken, activeTab, loadPendingSubscriptions]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setLoginError('');
+    try {
+      const res = await fetch(`${API_URL}/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      localStorage.setItem('adminToken', data.token);
+      setAdminToken(data.token);
+      showToast('Welcome, Admin!', 'success');
+    } catch (err) {
+      setLoginError(err.message);
+    }
+    setLoading(false);
+  };
+
+  const handleLogout = () => {
+    setConfirmPopup({
+      show: true,
+      title: 'Logout',
+      message: 'Are you sure you want to logout from the admin panel?',
+      onConfirm: () => {
+        localStorage.removeItem('adminToken');
+        setAdminToken(null);
+        setDashboard(null);
+        setUsers([]);
+        setConfirmPopup({ show: false, title: '', message: '', onConfirm: null });
+      }
+    });
+  };
+
+  const toggleUserStatus = async (userId, currentStatus) => {
+    setConfirmPopup({
+      show: true,
+      title: currentStatus ? 'Deactivate User' : 'Activate User',
+      message: `Are you sure you want to ${currentStatus ? 'deactivate' : 'activate'} this user?`,
+      onConfirm: async () => {
+        try {
+          await apiCall(`/admin/users/${userId}/toggle-status`, { method: 'PUT' });
+          showToast(`User ${currentStatus ? 'deactivated' : 'activated'} successfully`);
+          loadUsers(usersPagination.currentPage);
+          loadDashboard();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+        setConfirmPopup({ show: false, title: '', message: '', onConfirm: null });
+      }
+    });
+  };
+
+  const deleteUser = async (userId, userName) => {
+    setConfirmPopup({
+      show: true,
+      title: 'Delete User',
+      message: `Are you sure you want to permanently delete "${userName}" and all their data? This cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await apiCall(`/admin/users/${userId}`, { method: 'DELETE' });
+          showToast('User deleted successfully');
+          loadUsers(usersPagination.currentPage);
+          loadDashboard();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+        setConfirmPopup({ show: false, title: '', message: '', onConfirm: null });
+      }
+    });
+  };
+
+  const formatDate = (date) => {
+    if (!date) return 'Never';
+    const d = new Date(date);
+    // Convert to IST
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const utc = d.getTime() + (d.getTimezoneOffset() * 60 * 1000);
+    const istDate = new Date(utc + istOffset);
+    
+    const day = istDate.getDate();
+    const month = istDate.toLocaleDateString('en-IN', { month: 'short' });
+    const year = istDate.getFullYear();
+    const hours = istDate.getHours().toString().padStart(2, '0');
+    const minutes = istDate.getMinutes().toString().padStart(2, '0');
+    
+    return `${day} ${month} ${year}, ${hours}:${minutes}`;
+  };
+
+  // Login Page
+  if (!adminToken) {
+    return (
+      <div className="admin-login-page" data-theme={theme}>
+        <div className="admin-login-container">
+          <div className="admin-login-card">
+            <div className="admin-login-header">
+              <div className="admin-logo">🛡️</div>
+              <h1>Admin Panel</h1>
+              <p>Habit Tracker Administration</p>
+            </div>
+            <form onSubmit={handleLogin} className="admin-login-form">
+              {loginError && <div className="admin-error">{loginError}</div>}
+              <div className="admin-input-group">
+                <label>Username</label>
+                <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="Enter username" required />
+              </div>
+              <div className="admin-input-group">
+                <label>Password</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password" required />
+              </div>
+              <button type="submit" className="admin-login-btn" disabled={loading}>
+                {loading ? <span className="admin-spinner"></span> : 'Sign In'}
+              </button>
+            </form>
+            <button className="admin-theme-toggle" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-panel" data-theme={theme}>
+      {/* Toast */}
+      {toast.show && (
+        <div className={`admin-toast ${toast.type}`}>
+          {toast.type === 'success' ? '✅' : '❌'} {toast.message}
+        </div>
+      )}
+
+      {/* Confirm Popup */}
+      {confirmPopup.show && (
+        <div className="admin-popup-overlay">
+          <div className="admin-popup">
+            <h3>{confirmPopup.title}</h3>
+            <p>{confirmPopup.message}</p>
+            <div className="admin-popup-buttons">
+              <button className="admin-btn secondary" onClick={() => setConfirmPopup({ show: false, title: '', message: '', onConfirm: null })}>Cancel</button>
+              <button className="admin-btn danger" onClick={confirmPopup.onConfirm}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Header */}
+      <header className="admin-mobile-header">
+        <div className="admin-mobile-logo">
+          <span className="admin-logo-icon">🛡️</span>
+          <span>Admin</span>
+        </div>
+        <div className="admin-mobile-actions">
+          <button className="admin-theme-btn-mobile" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+          <button className="admin-hamburger" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            <span className={`admin-hamburger-line ${mobileMenuOpen ? 'open' : ''}`}></span>
+            <span className={`admin-hamburger-line ${mobileMenuOpen ? 'open' : ''}`}></span>
+            <span className={`admin-hamburger-line ${mobileMenuOpen ? 'open' : ''}`}></span>
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && <div className="admin-mobile-overlay" onClick={() => setMobileMenuOpen(false)}></div>}
+
+      {/* Sidebar */}
+      <aside className={`admin-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+        <div className="admin-sidebar-header">
+          <div className="admin-logo-small">🛡️</div>
+          <span>Admin Panel</span>
+        </div>
+        <nav className="admin-nav">
+          <button className={`admin-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}>
+            📊 <span>Dashboard</span>
+          </button>
+          <button className={`admin-nav-item ${activeTab === 'subscriptions' ? 'active' : ''}`} onClick={() => { setActiveTab('subscriptions'); setMobileMenuOpen(false); }}>
+            💳 <span>Subscriptions</span>
+            {pendingSubscriptions.length > 0 && <span className="admin-nav-badge">{pendingSubscriptions.length}</span>}
+          </button>
+          <button className={`admin-nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setMobileMenuOpen(false); }}>
+            👥 <span>Users</span>
+          </button>
+        </nav>
+        <div className="admin-sidebar-footer">
+          <button className="admin-theme-btn" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
+            {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+          </button>
+          <button className="admin-logout-btn" onClick={handleLogout}>🚪 Logout</button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="admin-main">
+        {activeTab === 'dashboard' && (
+          <div className="admin-dashboard">
+            <div className="admin-page-header">
+              <div>
+                <h1>Dashboard</h1>
+                <p className="admin-subtitle">Overview of your Habit Tracker platform</p>
+              </div>
+              <button className="admin-reload-btn" onClick={handleReload} disabled={reloading}>
+                {reloading ? <span className="admin-spinner"></span> : '🔄'} Refresh
+              </button>
+            </div>
+            
+            {!dashboard ? (
+              <div className="admin-loader-container">
+                <div className="admin-spinner-large"></div>
+                <p>Loading dashboard...</p>
+              </div>
+            ) : (
+              <>
+            
+            <div className="admin-stats-grid">
+              <div className="admin-stat-card primary">
+                <div className="admin-stat-icon">👥</div>
+                <div className="admin-stat-info">
+                  <span className="admin-stat-value">{dashboard.totalUsers}</span>
+                  <span className="admin-stat-label">Total Users</span>
+                </div>
+              </div>
+              <div className="admin-stat-card success">
+                <div className="admin-stat-icon">✅</div>
+                <div className="admin-stat-info">
+                  <span className="admin-stat-value">{dashboard.activeUsers}</span>
+                  <span className="admin-stat-label">Active Users</span>
+                </div>
+              </div>
+              <div className="admin-stat-card danger">
+                <div className="admin-stat-icon">🚫</div>
+                <div className="admin-stat-info">
+                  <span className="admin-stat-value">{dashboard.deactivatedUsers}</span>
+                  <span className="admin-stat-label">Deactivated</span>
+                </div>
+              </div>
+              <div className="admin-stat-card warning" onClick={() => setActiveTab('subscriptions')} style={{ cursor: 'pointer' }}>
+                <div className="admin-stat-icon">⏳</div>
+                <div className="admin-stat-info">
+                  <span className="admin-stat-value">{dashboard.pendingSubscriptions || 0}</span>
+                  <span className="admin-stat-label">Pending Subscriptions</span>
+                </div>
+              </div>
+              <div className="admin-stat-card info">
+                <div className="admin-stat-icon">💳</div>
+                <div className="admin-stat-info">
+                  <span className="admin-stat-value">{dashboard.activeSubscriptions || 0}</span>
+                  <span className="admin-stat-label">Active Subscriptions</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-cards-row">
+              <div className="admin-card admin-growth-card">
+                <h3>📈 User Growth (Last 30 Days)</h3>
+                {!chartReady ? (
+                  <div className="admin-chart-loader">
+                    <div className="admin-spinner-large"></div>
+                    <p>Rendering chart...</p>
+                  </div>
+                ) : dashboard.growthData && dashboard.growthData.length > 0 ? (
+                  <div className="admin-chart-container">
+                    <Line
+                      data={{
+                        labels: dashboard.growthData.map(d => d.date),
+                        datasets: [{
+                          label: 'New Users',
+                          data: dashboard.growthData.map(d => d.users),
+                          borderColor: '#10b981',
+                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                          fill: true,
+                          tension: 0.4,
+                          pointRadius: 3,
+                          pointHoverRadius: 6,
+                          pointBackgroundColor: '#10b981',
+                          pointBorderColor: '#fff',
+                          pointBorderWidth: 2
+                        }]
+                      }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            display: false
+                          },
+                          tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#f1f5f9',
+                            bodyColor: '#cbd5e1',
+                            borderColor: '#10b981',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                              label: (context) => `${context.parsed.y} new user${context.parsed.y !== 1 ? 's' : ''}`
+                            }
+                          }
+                        },
+                        scales: {
+                          x: {
+                            grid: {
+                              color: 'rgba(255, 255, 255, 0.05)',
+                              drawBorder: false
+                            },
+                            ticks: {
+                              color: '#64748b',
+                              maxRotation: 45,
+                              minRotation: 45,
+                              font: {
+                                size: 10
+                              }
+                            }
+                          },
+                          y: {
+                            beginAtZero: true,
+                            grid: {
+                              color: 'rgba(255, 255, 255, 0.05)',
+                              drawBorder: false
+                            },
+                            ticks: {
+                              color: '#64748b',
+                              stepSize: 1,
+                              font: {
+                                size: 11
+                              }
+                            }
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <p className="admin-empty">No growth data available</p>
+                )}
+              </div>
+              <div className="admin-card admin-growth-card">
+                <h3>💳 Subscription Growth (Last 30 Days)</h3>
+                {!chartReady ? (
+                  <div className="admin-chart-loader">
+                    <div className="admin-spinner-large"></div>
+                    <p>Rendering chart...</p>
+                  </div>
+                ) : dashboard.subscriptionGrowthData && dashboard.subscriptionGrowthData.length > 0 ? (
+                  <div className="admin-chart-container">
+                    <Line
+                      data={{
+                        labels: dashboard.subscriptionGrowthData.map(d => d.date),
+                        datasets: [{
+                          label: 'New Subscriptions',
+                          data: dashboard.subscriptionGrowthData.map(d => d.subscriptions),
+                          borderColor: '#f59e0b',
+                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                          fill: true,
+                          tension: 0.4,
+                          pointRadius: 3,
+                          pointHoverRadius: 6,
+                          pointBackgroundColor: '#f59e0b',
+                          pointBorderColor: '#fff',
+                          pointBorderWidth: 2
+                        }]
+                      }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            display: false
+                          },
+                          tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#f1f5f9',
+                            bodyColor: '#cbd5e1',
+                            borderColor: '#f59e0b',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                              label: (context) => `${context.parsed.y} subscription${context.parsed.y !== 1 ? 's' : ''}`
+                            }
+                          }
+                        },
+                        scales: {
+                          x: {
+                            grid: {
+                              color: 'rgba(255, 255, 255, 0.05)',
+                              drawBorder: false
+                            },
+                            ticks: {
+                              color: '#64748b',
+                              maxRotation: 45,
+                              minRotation: 45,
+                              font: {
+                                size: 10
+                              }
+                            }
+                          },
+                          y: {
+                            beginAtZero: true,
+                            grid: {
+                              color: 'rgba(255, 255, 255, 0.05)',
+                              drawBorder: false
+                            },
+                            ticks: {
+                              color: '#64748b',
+                              stepSize: 1,
+                              font: {
+                                size: 11
+                              }
+                            }
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <p className="admin-empty">No subscription data available</p>
+                )}
+              </div>
+            </div>
+            <div className="admin-cards-row full-width">
+              <div className="admin-card">
+                <h3>🏆 Top Active Users</h3>
+                <div className="admin-top-users">
+                  {dashboard.topUsers?.map((item, i) => (
+                    <div key={item._id} className="admin-top-user">
+                      <span className="admin-rank">#{i + 1}</span>
+                      <img src={item.user?.picture || '/default-avatar.png'} alt="" className="admin-user-avatar" />
+                      <div className="admin-user-info">
+                        <span className="admin-user-name">{item.user?.name}</span>
+                        <span className="admin-user-email">{item.user?.email}</span>
+                      </div>
+                      <span className="admin-user-count">{item.trackingCount} tracked</span>
+                    </div>
+                  ))}
+                  {(!dashboard.topUsers || dashboard.topUsers.length === 0) && (
+                    <p className="admin-empty">No activity yet</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            </>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'users' && (
+          <div className="admin-users">
+            <div className="admin-page-header">
+              <div>
+                <h1>Users Management</h1>
+                <p className="admin-subtitle">Manage all registered users</p>
+              </div>
+              <button className="admin-reload-btn" onClick={handleReload} disabled={reloading}>
+                {reloading ? <span className="admin-spinner"></span> : '🔄'} Refresh
+              </button>
+            </div>
+
+            <div className="admin-users-toolbar">
+              <div className="admin-search">
+                <input type="text" placeholder="Search by name or email..." value={searchInput} onChange={e => setSearchInput(e.target.value)} />
+                <button onClick={() => loadUsers(1)}>🔍</button>
+              </div>
+              <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); }}>
+                <option value="all">All Users</option>
+                <option value="active">Active Only</option>
+                <option value="deactivated">Deactivated Only</option>
+              </select>
+            </div>
+
+            {loading ? (
+              <div className="admin-loader-container">
+                <div className="admin-spinner-large"></div>
+                <p>Loading users...</p>
+              </div>
+            ) : (
+              <div className="admin-users-table-container">
+                <table className="admin-users-table">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Email</th>
+                      <th>Habits</th>
+                      <th>Joined</th>
+                      <th>Subscribed On</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map(user => (
+                    <tr key={user._id} className={!user.isActive ? 'deactivated' : ''}>
+                      <td>
+                        <div className="admin-user-cell">
+                          <img src={user.picture || '/default-avatar.png'} alt="" />
+                          <span>{user.name}</span>
+                        </div>
+                      </td>
+                      <td>{user.email}</td>
+                      <td>{user.habitCount}</td>
+                      <td>{formatDate(user.createdAt)}</td>
+                      <td>
+                        {user.subscriptionStatus === 'active' && user.subscriptionDate ? (
+                          <span className="admin-sub-date">{formatDate(user.subscriptionDate)}</span>
+                        ) : user.subscriptionStatus === 'pending' ? (
+                          <span className="admin-status-badge pending">Pending</span>
+                        ) : (
+                          <span className="admin-text-muted">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`admin-status-badge ${user.isActive ? 'active' : 'inactive'}`}>
+                          {user.isActive ? 'Active' : 'Deactivated'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="admin-actions">
+                          <button className="admin-action-btn email" onClick={() => openEmailPopup(user)} title="Send Email">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                              <polyline points="22,6 12,13 2,6"></polyline>
+                            </svg>
+                          </button>
+                          <button className={`admin-action-btn ${user.isActive ? 'deactivate' : 'activate'}`} onClick={() => toggleUserStatus(user._id, user.isActive)} title={user.isActive ? 'Deactivate' : 'Activate'}>
+                            {user.isActive ? '🚫' : '✅'}
+                          </button>
+                          <button className="admin-action-btn delete" onClick={() => deleteUser(user._id, user.name)} title="Delete">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                              <line x1="10" y1="11" x2="10" y2="17"></line>
+                              <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {users.length === 0 && <p className="admin-empty">No users found</p>}
+              </div>
+            )}
+
+            {usersPagination.pages > 1 && (
+              <div className="admin-pagination">
+                <button disabled={usersPagination.currentPage === 1} onClick={() => loadUsers(usersPagination.currentPage - 1)}>← Prev</button>
+                <span>Page {usersPagination.currentPage} of {usersPagination.pages}</span>
+                <button disabled={usersPagination.currentPage === usersPagination.pages} onClick={() => loadUsers(usersPagination.currentPage + 1)}>Next →</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'subscriptions' && (
+          <div className="admin-subscriptions">
+            <div className="admin-page-header">
+              <div>
+                <h1>Subscription Management</h1>
+                <p className="admin-subtitle">Review and manage pending subscription requests</p>
+              </div>
+              <button className="admin-reload-btn" onClick={handleReload} disabled={reloading}>
+                {reloading ? <span className="admin-spinner"></span> : '🔄'} Refresh
+              </button>
+            </div>
+
+            {subscriptionsLoading ? (
+              <div className="admin-loader-container">
+                <div className="admin-spinner-large"></div>
+                <p>Loading subscriptions...</p>
+              </div>
+            ) : pendingSubscriptions.length === 0 ? (
+              <div className="admin-empty-state">
+                <div className="admin-empty-icon">✅</div>
+                <h3>No Pending Subscriptions</h3>
+                <p>All subscription requests have been processed.</p>
+              </div>
+            ) : (
+              <div className="admin-subscriptions-grid">
+                {pendingSubscriptions.map(user => (
+                  <div key={user._id} className="admin-subscription-card">
+                    <div className="admin-subscription-header">
+                      <img src={user.picture || '/default-avatar.png'} alt="" className="admin-subscription-avatar" />
+                      <div className="admin-subscription-info">
+                        <h4>{user.name}</h4>
+                        <p>{user.email}</p>
+                        <span className="admin-subscription-date">Submitted: {formatDate(user.createdAt)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="admin-subscription-screenshot">
+                      <h5>Payment Screenshot</h5>
+                      {user.paymentScreenshot ? (
+                        <div className="admin-screenshot-container">
+                          <img 
+                            src={user.paymentScreenshot} 
+                            alt="Payment Screenshot" 
+                            onClick={() => setImagePreview(user.paymentScreenshot)}
+                          />
+                          <button className="admin-view-btn" onClick={() => setImagePreview(user.paymentScreenshot)}>
+                            🔍 View Full Size
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="admin-no-screenshot">
+                          <span>⚠️</span>
+                          <p>No screenshot uploaded</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="admin-subscription-actions">
+                      <button 
+                        className="admin-btn approve" 
+                        onClick={() => approveSubscription(user._id, user.name)}
+                        disabled={processingSubscription === user._id}
+                      >
+                        {processingSubscription === user._id ? <><span className="admin-spinner"></span> Processing...</> : 'Approve'}
+                      </button>
+                      <button 
+                        className="admin-btn reject" 
+                        onClick={() => rejectSubscription(user._id, user.name)}
+                        disabled={processingSubscription === user._id}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Image Preview Modal */}
+        {imagePreview && (
+          <div className="admin-image-preview-overlay" onClick={() => setImagePreview(null)}>
+            <div className="admin-image-preview-container" onClick={e => e.stopPropagation()}>
+              <button className="admin-image-preview-close" onClick={() => setImagePreview(null)}>×</button>
+              <img src={imagePreview} alt="Payment Screenshot" />
+            </div>
+          </div>
+        )}
+
+        {/* Rejection Reason Popup */}
+        {rejectPopup.show && (
+          <div className="admin-popup-overlay">
+            <div className="admin-popup admin-reject-popup">
+              <div className="admin-popup-icon reject">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </div>
+              <h3>Reject Subscription</h3>
+              <p className="admin-popup-subtitle">Rejecting subscription for <strong>{rejectPopup.userName}</strong></p>
+              <div className="admin-popup-form">
+                <label>Reason for Rejection <span className="required">*</span></label>
+                <textarea 
+                  placeholder="Enter the reason for rejection (e.g., Invalid payment screenshot, Amount mismatch, etc.)"
+                  value={rejectPopup.reason}
+                  onChange={e => setRejectPopup(prev => ({ ...prev, reason: e.target.value }))}
+                  rows={4}
+                />
+                <p className="admin-popup-note">⚠️ This reason will be sent to the user via email.</p>
+              </div>
+              <div className="admin-popup-buttons">
+                <button className="admin-btn secondary" onClick={() => setRejectPopup({ show: false, userId: null, userName: '', reason: '', loading: false })} disabled={rejectPopup.loading}>Cancel</button>
+                <button className="admin-btn danger" onClick={handleRejectConfirm} disabled={rejectPopup.loading}>
+                  {rejectPopup.loading ? <><span className="admin-spinner"></span> Sending...</> : 'Reject & Send Email'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Email User Popup */}
+        {emailPopup.show && (
+          <div className="admin-popup-overlay">
+            <div className="admin-popup admin-email-popup">
+              <div className="admin-popup-icon email">✉️</div>
+              <h3>Send Email</h3>
+              <p className="admin-popup-subtitle">
+                To: <strong>{emailPopup.userName}</strong> ({emailPopup.userEmail})
+              </p>
+              <div className="admin-popup-form">
+                <label>Subject <span className="required">*</span></label>
+                <input 
+                  type="text"
+                  placeholder="Enter email subject"
+                  value={emailPopup.subject}
+                  onChange={e => setEmailPopup(prev => ({ ...prev, subject: e.target.value }))}
+                />
+                
+                <label>Message Body <span className="required">*</span></label>
+                <textarea 
+                  placeholder="Enter your message here..."
+                  value={emailPopup.body}
+                  onChange={e => setEmailPopup(prev => ({ ...prev, body: e.target.value }))}
+                  rows={6}
+                />
+                
+                <label>Image URL (Optional)</label>
+                <input 
+                  type="text"
+                  placeholder="https://example.com/image.png"
+                  value={emailPopup.imageUrl}
+                  onChange={e => setEmailPopup(prev => ({ ...prev, imageUrl: e.target.value }))}
+                />
+                <p className="admin-popup-note">💡 Paste a direct image URL to include in the email.</p>
+              </div>
+              <div className="admin-popup-buttons">
+                <button className="admin-btn secondary" onClick={() => setEmailPopup({ show: false, userId: null, userName: '', userEmail: '', subject: '', body: '', imageUrl: '', sending: false })} disabled={emailPopup.sending}>Cancel</button>
+                <button className="admin-btn primary" onClick={handleSendEmail} disabled={emailPopup.sending}>
+                  {emailPopup.sending ? <><span className="admin-spinner"></span> Sending...</> : '📤 Send Email'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default AdminPanel;

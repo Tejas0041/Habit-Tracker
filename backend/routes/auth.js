@@ -37,7 +37,7 @@ router.post('/google', async (req, res) => {
 
     if (!user) {
       isNewUser = true;
-      user = await User.create({ googleId, email, name, picture });
+      user = await User.create({ googleId, email, name, picture, isActive: true });
       
       // Create default habits for new users with backdated createdAt (1 year ago)
       const oneYearAgo = new Date();
@@ -50,6 +50,14 @@ router.post('/google', async (req, res) => {
         createdAt: oneYearAgo
       }));
       await Habit.insertMany(habitsToCreate);
+    } else {
+      // Check if user is deactivated
+      if (!user.isActive) {
+        return res.status(403).json({ error: 'ACCOUNT_DEACTIVATED', message: 'Your account has been deactivated. Please contact support.' });
+      }
+      // Update last login
+      user.lastLogin = new Date();
+      await user.save();
     }
 
     const token = jwt.sign(
@@ -58,7 +66,22 @@ router.post('/google', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    res.json({ token, user: { id: user._id, name, email, picture, dob: user.dob, gender: user.gender }, isNewUser });
+    res.json({ 
+      token, 
+      user: { 
+        id: user._id, 
+        name, 
+        email, 
+        picture, 
+        dob: user.dob, 
+        gender: user.gender,
+        subscriptionStatus: user.subscriptionStatus,
+        subscriptionDate: user.subscriptionDate,
+        subscriptionExpiry: user.subscriptionExpiry,
+        createdAt: user.createdAt
+      }, 
+      isNewUser 
+    });
   } catch (err) {
     console.error('Auth error:', err);
     res.status(401).json({ error: 'Authentication failed' });
@@ -70,7 +93,18 @@ router.get('/profile', auth, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ id: user._id, name: user.name, email: user.email, picture: user.picture, dob: user.dob, gender: user.gender });
+    res.json({ 
+      id: user._id, 
+      name: user.name, 
+      email: user.email, 
+      picture: user.picture, 
+      dob: user.dob, 
+      gender: user.gender,
+      subscriptionStatus: user.subscriptionStatus,
+      subscriptionDate: user.subscriptionDate,
+      subscriptionExpiry: user.subscriptionExpiry,
+      createdAt: user.createdAt
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,0 +1,18 @@
+{
+  "short_name": "Habit Tracker",
+  "name": "Habit Tracker - Build Better Habits",
+  "description": "Track your daily habits, visualize your progress, and achieve your goals",
+  "icons": [
+    {
+      "src": "habits.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#10b981",
+  "background_color": "#0f172a",
+  "orientation": "portrait"
+}

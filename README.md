@@ -11,6 +11,25 @@ A modern, full-stack habit tracking application built with the MERN stack. Track
 - Secure Google OAuth 2.0 login
 - JWT-based session management
 - User profile management
+- Account activation/deactivation by admin
+
+### 💳 Subscription System
+- **₹49/Year Subscription**: Affordable annual subscription model
+- **Payment Screenshot Upload**: Users upload payment proof via Cloudinary
+- **Image Compression**: Automatic compression to 150KB
+- **Admin Verification**: Manual approval system for payments
+- **Status Tracking**: Pending, Active, Expired subscription states
+- **Access Control**: Non-subscribed users blocked from app features
+
+### 🛡️ Admin Panel
+- **Dashboard**: Overview of platform statistics with growth charts
+- **User Management**: View, search, and manage all users
+- **Subscription Management**: Approve/reject pending subscriptions
+- **Activate/Deactivate Users**: Control user access
+- **Delete Users**: Remove users and all their data
+- **Dark/Light Theme**: Admin panel theme support
+- **Access**: Navigate to `/admin` route
+- **Credentials**: Set in `.env` file
 
 ### 📊 Habit Tracking
 - **Daily Tracking**: Mark habits complete with a simple click
@@ -77,6 +96,16 @@ MONGODB_URI=mongodb://localhost:27017/habit-tracker
 JWT_SECRET=your_super_secret_jwt_key_here_change_this
 
 GOOGLE_CLIENT_ID=your_google_client_id_here.apps.googleusercontent.com
+
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your_secure_admin_password
+
+CONTACT_EMAIL=healthtracker.tp@gmail.com
+
+# Cloudinary Configuration (for payment screenshot uploads)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 
 PORT=5000
 ```
@@ -152,6 +181,9 @@ habit-tracker/
 - **MongoDB** & **Mongoose** - Database
 - **JWT** - Token-based authentication
 - **Google OAuth 2.0** - User authentication
+- **Cloudinary** - Image storage for payment screenshots
+- **Multer** - File upload handling
+- **Sharp** - Image compression
 - **CORS** - Cross-origin resource sharing
 
 ## 📱 Screenshots
@@ -203,6 +235,20 @@ habit-tracker/
 - `POST /api/tracking/toggle` - Toggle habit completion
 - `GET /api/tracking/streaks/:habitId/:year/:month` - Get habit streaks
 
+### Subscription
+- `POST /api/subscription/submit-payment` - Submit payment screenshot
+- `GET /api/subscription/status` - Check subscription status
+
+### Admin
+- `POST /api/admin/login` - Admin login
+- `GET /api/admin/dashboard` - Get dashboard stats
+- `GET /api/admin/users` - Get all users with pagination
+- `GET /api/admin/subscriptions/pending` - Get pending subscriptions
+- `PUT /api/admin/subscriptions/:id/approve` - Approve subscription
+- `PUT /api/admin/subscriptions/:id/reject` - Reject subscription
+- `PUT /api/admin/users/:id/toggle-status` - Toggle user active status
+- `DELETE /api/admin/users/:id` - Delete user
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -210,6 +256,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📄 License
 
 This project is licensed under the MIT License.
+
+## 📧 Contact
+
+For support or inquiries:
+- Email: healthtracker.tp@gmail.com
 
 ## 👨‍💻 Author
 
