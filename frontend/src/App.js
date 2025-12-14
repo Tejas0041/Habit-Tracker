@@ -304,6 +304,112 @@ const TimePicker = ({ value, onChange, onClose, label }) => {
   );
 };
 
+const DOBPicker = ({ value, onChange, onClose }) => {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const dateObj = value ? new Date(value + 'T00:00:00') : new Date(currentYear - 20, 0, 1);
+  
+  const [selectedYear, setSelectedYear] = useState(dateObj.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(dateObj.getMonth());
+  const [selectedDay, setSelectedDay] = useState(dateObj.getDate());
+  
+  const yearScrollRef = React.useRef(null);
+  const monthScrollRef = React.useRef(null);
+  const dayScrollRef = React.useRef(null);
+
+  const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
+  const daysInSelectedMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+
+  useEffect(() => {
+    if (selectedDay > daysInSelectedMonth) {
+      setSelectedDay(daysInSelectedMonth);
+    }
+  }, [selectedMonth, selectedYear, daysInSelectedMonth, selectedDay]);
+
+  useEffect(() => {
+    const scrollToSelected = (ref, selector) => {
+      if (ref.current) {
+        const el = ref.current.querySelector(selector);
+        if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+    scrollToSelected(yearScrollRef, '.dob-option.selected');
+    scrollToSelected(monthScrollRef, '.dob-option.selected');
+    scrollToSelected(dayScrollRef, '.dob-option.selected');
+  }, []);
+
+  const handleConfirm = () => {
+    const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+    onChange(dateStr);
+    onClose();
+  };
+
+  const getDayName = (day) => {
+    const date = new Date(selectedYear, selectedMonth, day);
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  };
+
+  return (
+    <div className="time-picker-overlay" onClick={onClose}>
+      <div className="time-picker-modal dob-picker-modal" onClick={e => e.stopPropagation()}>
+        <h3>Date of Birth</h3>
+        <div className="dob-picker-wheels">
+          <div className="dob-wheel">
+            <div className="dob-wheel-label">Day</div>
+            <div className="dob-wheel-scroll" ref={dayScrollRef}>
+              {Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1).map(day => (
+                <div
+                  key={day}
+                  className={`dob-option ${selectedDay === day ? 'selected' : ''}`}
+                  onClick={() => setSelectedDay(day)}
+                >
+                  <span className="dob-day-num">{day}</span>
+                  <span className="dob-day-name">{getDayName(day)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="dob-wheel">
+            <div className="dob-wheel-label">Month</div>
+            <div className="dob-wheel-scroll" ref={monthScrollRef}>
+              {MONTHS.map((month, i) => (
+                <div
+                  key={i}
+                  className={`dob-option ${selectedMonth === i ? 'selected' : ''}`}
+                  onClick={() => setSelectedMonth(i)}
+                >
+                  {month.substring(0, 3)}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="dob-wheel">
+            <div className="dob-wheel-label">Year</div>
+            <div className="dob-wheel-scroll" ref={yearScrollRef}>
+              {years.map(year => (
+                <div
+                  key={year}
+                  className={`dob-option ${selectedYear === year ? 'selected' : ''}`}
+                  onClick={() => setSelectedYear(year)}
+                >
+                  {year}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="dob-picker-preview">
+          {selectedDay} {MONTHS[selectedMonth]} {selectedYear}
+        </div>
+        <div className="time-picker-buttons">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={handleConfirm}>Confirm</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DailyBar = ({ day, dayName, completed, goal, color }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const percent = goal ? Math.round((completed / goal) * 100) : 0;
@@ -334,6 +440,7 @@ const ProfilePage = ({ user, token, onBack, onUpdateUser, showToast }) => {
   const [dob, setDob] = useState(user.dob ? user.dob.split('T')[0] : '');
   const [gender, setGender] = useState(user.gender || '');
   const [saving, setSaving] = useState(false);
+  const [showDOBPicker, setShowDOBPicker] = useState(false);
 
   const originalData = { name: user.name || '', dob: user.dob ? user.dob.split('T')[0] : '', gender: user.gender || '' };
   const hasChanges = name !== originalData.name || dob !== originalData.dob || gender !== originalData.gender;
@@ -394,7 +501,7 @@ const ProfilePage = ({ user, token, onBack, onUpdateUser, showToast }) => {
                 )}
               </h1>
               <p className="profile-email">{user.email}</p>
-              {age && <p className="profile-age">{age} years old</p>}
+              {age !== null && <p className="profile-age">{age} years old</p>}
             </div>
           </div>
         </div>
@@ -408,7 +515,9 @@ const ProfilePage = ({ user, token, onBack, onUpdateUser, showToast }) => {
               </div>
               <div className="form-group">
                 <label>Date of Birth</label>
-                <input type="date" value={dob} onChange={e => setDob(e.target.value)} />
+                <button type="button" className="dob-picker-button" onClick={() => setShowDOBPicker(true)}>
+                  {dob ? formatDate(dob) : 'Select Date of Birth'}
+                </button>
               </div>
               <div className="form-group">
                 <label>Gender</label>
@@ -419,7 +528,7 @@ const ProfilePage = ({ user, token, onBack, onUpdateUser, showToast }) => {
                   <option value="other">Other</option>
                 </select>
               </div>
-              {age && (
+              {age !== null && (
                 <div className="form-group">
                   <label>Age</label>
                   <div className="age-display">{age} years</div>
@@ -496,6 +605,13 @@ const ProfilePage = ({ user, token, onBack, onUpdateUser, showToast }) => {
           </div>
         </div>
       </div>
+      {showDOBPicker && (
+        <DOBPicker
+          value={dob}
+          onChange={setDob}
+          onClose={() => setShowDOBPicker(false)}
+        />
+      )}
     </div>
   );
 };

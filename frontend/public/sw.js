@@ -12,6 +12,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Network-first strategy
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request)
+      .then(response => response)
+      .catch(() => {
+        return caches.match(event.request).then(cachedResponse => {
+          return cachedResponse || new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+        });
+      })
   );
 });

@@ -125,7 +125,18 @@ router.put('/profile', auth, async (req, res) => {
       { new: true }
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ id: user._id, name: user.name, email: user.email, picture: user.picture, dob: user.dob, gender: user.gender, createdAt: user.createdAt });
+    res.json({ 
+      id: user._id, 
+      name: user.name, 
+      email: user.email, 
+      picture: user.picture, 
+      dob: user.dob, 
+      gender: user.gender,
+      subscriptionStatus: user.subscriptionStatus,
+      subscriptionDate: user.subscriptionDate,
+      subscriptionExpiry: user.subscriptionExpiry,
+      createdAt: user.createdAt 
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
