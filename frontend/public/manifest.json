@@ -67,6 +67,18 @@
           "type": "image/svg+xml"
         }
       ]
+    },
+    {
+      "name": "Widgets Dashboard",
+      "short_name": "Widgets",
+      "description": "View all widgets in one place",
+      "url": "/?action=widgets",
+      "icons": [
+        {
+          "src": "habits.png",
+          "sizes": "96x96"
+        }
+      ]
     }
   ],
   "categories": ["productivity", "health", "lifestyle"],

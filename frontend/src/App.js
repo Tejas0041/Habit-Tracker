@@ -689,6 +689,9 @@ function App() {
         case 'stats':
           setActiveTab('analytics');
           break;
+        case 'widgets':
+          setActiveTab('widgets');
+          break;
       }
       // Clean URL after handling action
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -1689,6 +1692,7 @@ function App() {
           <button className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>📊 Overview</button>
           <button className={activeTab === 'stats' ? 'active' : ''} onClick={() => setActiveTab('stats')}>📈 Stats</button>
           <button className={activeTab === 'sleep' ? 'active' : ''} onClick={() => setActiveTab('sleep')}>🛌 Sleep</button>
+          <button className={activeTab === 'widgets' ? 'active' : ''} onClick={() => setActiveTab('widgets')}>🔲 Widgets</button>
         </nav>
 
         <div className="main-content">
@@ -2205,6 +2209,90 @@ function App() {
                   {habitStats.length === 0 && (
                     <div className="empty-state">No habits tracked this month</div>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'widgets' && (
+            <div className="widgets-view">
+              <div className="page-header">
+                <div>
+                  <h2>Widgets Dashboard</h2>
+                  <p className="page-subtitle">View all your habit widgets in one place</p>
+                </div>
+              </div>
+              
+              <div className="widgets-grid">
+                <div className="widget-card">
+                  <div className="widget-frame">
+                    <iframe 
+                      src="/widgets/progress-widget.html" 
+                      title="Progress Widget"
+                      className="widget-iframe"
+                      frameBorder="0"
+                    />
+                  </div>
+                  <div className="widget-info">
+                    <h3>Today's Progress</h3>
+                    <p>Track your daily habit completion with a visual progress circle</p>
+                  </div>
+                </div>
+                
+                <div className="widget-card">
+                  <div className="widget-frame">
+                    <iframe 
+                      src="/widgets/stats-widget.html" 
+                      title="Stats Widget"
+                      className="widget-iframe"
+                      frameBorder="0"
+                    />
+                  </div>
+                  <div className="widget-info">
+                    <h3>Weekly Statistics</h3>
+                    <p>View your weekly habit trends with bar charts and analytics</p>
+                  </div>
+                </div>
+                
+                <div className="widget-card">
+                  <div className="widget-frame">
+                    <iframe 
+                      src="/widgets/sleep-widget.html" 
+                      title="Sleep Widget"
+                      className="widget-iframe"
+                      frameBorder="0"
+                    />
+                  </div>
+                  <div className="widget-info">
+                    <h3>Sleep Tracker</h3>
+                    <p>Monitor your sleep patterns, quality, and weekly trends</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="widget-instructions">
+                <div className="instruction-card">
+                  <h3>📱 How to Add Widgets to Home Screen</h3>
+                  <div className="instruction-steps">
+                    <div className="instruction-step">
+                      <div className="step-number">1</div>
+                      <div className="step-content">
+                        <strong>Android:</strong> Long-press empty home screen space → Tap "Widgets" → Find "Habit Tracker"
+                      </div>
+                    </div>
+                    <div className="instruction-step">
+                      <div className="step-number">2</div>
+                      <div className="step-content">
+                        <strong>Alternative:</strong> Long-press app icon → Look for "Widgets" option
+                      </div>
+                    </div>
+                    <div className="instruction-step">
+                      <div className="step-number">3</div>
+                      <div className="step-content">
+                        <strong>iOS:</strong> Limited support - use shortcuts instead (long-press app icon)
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
