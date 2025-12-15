@@ -17,7 +17,7 @@ module.exports = async (req, res, next) => {
     req.userId = decoded.userId;
     
     // Check if user exists and is active
-    const user = await User.findById(req.userId).select('isActive subscriptionStatus subscriptionExpiry name email');
+    const user = await User.findById(req.userId).select('isActive subscriptionStatus subscriptionExpiry isPaused name email');
     
     if (!user) {
       return res.status(401).json({ error: 'USER_NOT_FOUND', message: 'Your account no longer exists. Please contact support.' });
@@ -25,6 +25,11 @@ module.exports = async (req, res, next) => {
     
     if (!user.isActive) {
       return res.status(403).json({ error: 'ACCOUNT_DEACTIVATED', message: 'Your account has been deactivated. Please contact support.' });
+    }
+    
+    // Check if subscription is paused (applies to all routes)
+    if (user.subscriptionStatus === 'active' && user.isPaused) {
+      return res.status(403).json({ error: 'SUBSCRIPTION_PAUSED', message: 'Your subscription has been paused by admin. Please contact support.' });
     }
     
     // Check subscription status (except for subscription and profile routes)

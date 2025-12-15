@@ -55,6 +55,11 @@ router.post('/google', async (req, res) => {
       if (!user.isActive) {
         return res.status(403).json({ error: 'ACCOUNT_DEACTIVATED', message: 'Your account has been deactivated. Please contact support.' });
       }
+      
+      // Check if subscription is paused
+      if (user.subscriptionStatus === 'active' && user.isPaused) {
+        return res.status(403).json({ error: 'SUBSCRIPTION_PAUSED', message: 'Your subscription has been paused by admin. Please contact support.' });
+      }
       // Update last login
       user.lastLogin = new Date();
       await user.save();

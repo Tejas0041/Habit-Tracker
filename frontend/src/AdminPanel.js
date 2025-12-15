@@ -43,16 +43,78 @@ const AdminPanel = () => {
   const [theme, setTheme] = useState(localStorage.getItem('adminTheme') || 'dark');
   const [chartReady, setChartReady] = useState(false);
   const [pendingSubscriptions, setPendingSubscriptions] = useState([]);
+  const [allSubscriptions, setAllSubscriptions] = useState([]);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subscriptionTab, setSubscriptionTab] = useState('all'); // 'all' or 'pending'
   const [imagePreview, setImagePreview] = useState(null);
   const [processingSubscription, setProcessingSubscription] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const searchTimeout = useRef(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('adminTheme', theme);
   }, [theme]);
+
+  // PWA Installation for Admin Panel
+  useEffect(() => {
+    const checkMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 900;
+    setIsMobileDevice(checkMobile());
+    
+    // Update manifest link for admin
+    const manifestLink = document.querySelector('link[rel="manifest"]');
+    if (manifestLink) {
+      manifestLink.href = '/admin-manifest.json';
+    } else {
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = '/admin-manifest.json';
+      document.head.appendChild(link);
+    }
+    
+    const handleBeforeInstall = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('resize', () => setIsMobileDevice(checkMobile()));
+    
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      // Restore original manifest when leaving admin
+      const manifestLink = document.querySelector('link[rel="manifest"]');
+      if (manifestLink) {
+        manifestLink.href = '/manifest.json';
+      }
+    };
+  }, []);
+
+  const handleAddToHomescreen = async () => {
+    setMobileMenuOpen(false);
+    if (!deferredPrompt) {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const message = isIOS 
+        ? '1. Tap the Share button (square with arrow) at the bottom of Safari\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add" to confirm'
+        : '1. Tap the three-dot menu (⋮) in the top right\n2. Tap "Add to Home screen" or "Install app"\n3. Tap "Add" to confirm';
+      
+      setConfirmPopup({
+        show: true,
+        title: 'Add Admin Panel to Home Screen',
+        message,
+        onConfirm: () => setConfirmPopup({ show: false, title: '', message: '', onConfirm: null })
+      });
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      showToast('Admin panel added to homescreen!', 'success');
+    }
+    setDeferredPrompt(null);
+  };
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -118,6 +180,16 @@ const AdminPanel = () => {
     }
   }, [adminToken, apiCall, showToast]);
 
+  const loadAllSubscriptions = useCallback(async () => {
+    if (!adminToken) return;
+    try {
+      const data = await apiCall('/admin/subscriptions/all');
+      setAllSubscriptions(data.users || []);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }, [adminToken, apiCall, showToast]);
+
   const [reloading, setReloading] = useState(false);
   
   const handleReload = async () => {
@@ -129,6 +201,7 @@ const AdminPanel = () => {
         await loadUsers(usersPagination.currentPage);
       } else if (activeTab === 'subscriptions') {
         await loadPendingSubscriptions();
+        await loadAllSubscriptions();
       }
       showToast('Data refreshed!', 'success');
     } catch (err) {
@@ -150,6 +223,7 @@ const AdminPanel = () => {
           await apiCall(`/admin/subscriptions/${userId}/approve`, { method: 'PUT' });
           showToast('Subscription approved successfully!', 'success');
           loadPendingSubscriptions();
+          loadAllSubscriptions();
           loadDashboard();
         } catch (err) {
           showToast(err.message, 'error');
@@ -167,11 +241,54 @@ const AdminPanel = () => {
       await apiCall(`/admin/subscriptions/${userId}/reject`, { method: 'PUT' });
       showToast('Subscription rejected', 'success');
       loadPendingSubscriptions();
+      loadAllSubscriptions();
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
       setProcessingSubscription(null);
     }
+  };
+
+  const pauseSubscription = async (userId, userName) => {
+    setConfirmPopup({
+      show: true,
+      title: 'Pause Subscription',
+      message: `Are you sure you want to pause subscription for "${userName}"? Their subscription timer will be paused.`,
+      onConfirm: async () => {
+        setConfirmPopup({ show: false, title: '', message: '', onConfirm: null });
+        setProcessingSubscription(userId);
+        try {
+          await apiCall(`/admin/subscriptions/${userId}/pause`, { method: 'PUT' });
+          showToast('Subscription paused successfully!', 'success');
+          loadAllSubscriptions();
+        } catch (err) {
+          showToast(err.message, 'error');
+        } finally {
+          setProcessingSubscription(null);
+        }
+      }
+    });
+  };
+
+  const resumeSubscription = async (userId, userName) => {
+    setConfirmPopup({
+      show: true,
+      title: 'Resume Subscription',
+      message: `Are you sure you want to resume subscription for "${userName}"? Their subscription timer will continue.`,
+      onConfirm: async () => {
+        setConfirmPopup({ show: false, title: '', message: '', onConfirm: null });
+        setProcessingSubscription(userId);
+        try {
+          await apiCall(`/admin/subscriptions/${userId}/resume`, { method: 'PUT' });
+          showToast('Subscription resumed successfully!', 'success');
+          loadAllSubscriptions();
+        } catch (err) {
+          showToast(err.message, 'error');
+        } finally {
+          setProcessingSubscription(null);
+        }
+      }
+    });
   };
 
   // Debounced search
@@ -192,6 +309,20 @@ const AdminPanel = () => {
     }
   }, [adminToken, loadDashboard, loadPendingSubscriptions]);
 
+  // Handle admin shortcut URL parameters
+  useEffect(() => {
+    if (adminToken) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tab = urlParams.get('tab');
+      
+      if (tab && ['dashboard', 'subscriptions', 'users'].includes(tab)) {
+        setActiveTab(tab);
+        // Clean URL after handling action
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [adminToken]);
+
   useEffect(() => {
     if (adminToken) {
       loadUsers(1);
@@ -201,8 +332,9 @@ const AdminPanel = () => {
   useEffect(() => {
     if (adminToken && activeTab === 'subscriptions') {
       loadPendingSubscriptions();
+      loadAllSubscriptions();
     }
-  }, [adminToken, activeTab, loadPendingSubscriptions]);
+  }, [adminToken, activeTab, loadPendingSubscriptions, loadAllSubscriptions]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -375,10 +507,6 @@ const AdminPanel = () => {
 
       {/* Sidebar */}
       <aside className={`admin-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
-        <div className="admin-sidebar-header">
-          <div className="admin-logo-small">🛡️</div>
-          <span>Admin Panel</span>
-        </div>
         <nav className="admin-nav">
           <button className={`admin-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}>
             📊 <span>Dashboard</span>
@@ -391,10 +519,19 @@ const AdminPanel = () => {
             👥 <span>Users</span>
           </button>
         </nav>
+        <div className="admin-sidebar-header">
+          <div className="admin-logo-small">🛡️</div>
+          <span>Admin Panel</span>
+        </div>
         <div className="admin-sidebar-footer">
           <button className="admin-theme-btn" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
             {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
           </button>
+          {isMobileDevice && (
+            <button className="admin-install-btn" onClick={handleAddToHomescreen}>
+              📱 Add to Home
+            </button>
+          )}
           <button className="admin-logout-btn" onClick={handleLogout}>🚪 Logout</button>
         </div>
       </aside>
@@ -766,76 +903,185 @@ const AdminPanel = () => {
             <div className="admin-page-header">
               <div>
                 <h1>Subscription Management</h1>
-                <p className="admin-subtitle">Review and manage pending subscription requests</p>
+                <p className="admin-subtitle">Manage subscription requests and track all user subscriptions</p>
               </div>
               <button className="admin-reload-btn" onClick={handleReload} disabled={reloading}>
                 {reloading ? <span className="admin-spinner"></span> : '🔄'} Refresh
               </button>
             </div>
 
-            {subscriptionsLoading ? (
-              <div className="admin-loader-container">
-                <div className="admin-spinner-large"></div>
-                <p>Loading subscriptions...</p>
+            {/* Subscription Tabs */}
+            <div className="admin-subscription-tabs">
+              <button 
+                className={`admin-tab ${subscriptionTab === 'all' ? 'active' : ''}`}
+                onClick={() => setSubscriptionTab('all')}
+              >
+                All Subscriptions
+                <span className="admin-tab-count">{allSubscriptions.length}</span>
+              </button>
+              <button 
+                className={`admin-tab ${subscriptionTab === 'pending' ? 'active' : ''}`}
+                onClick={() => setSubscriptionTab('pending')}
+              >
+                New Requests
+                <span className="admin-tab-count">{pendingSubscriptions.length}</span>
+              </button>
+            </div>
+
+            {/* All Subscriptions Tab */}
+            {subscriptionTab === 'all' && (
+              <div className="admin-tab-content">
+                {allSubscriptions.length === 0 ? (
+                  <div className="admin-empty-state">
+                    <div className="admin-empty-icon">📋</div>
+                    <h3>No Subscriptions Found</h3>
+                    <p>No users have subscribed yet.</p>
+                  </div>
+                ) : (
+                  <div className="admin-table-wrapper">
+                    <table className="admin-subscriptions-table">
+                      <thead>
+                        <tr>
+                          <th style={{width: '250px'}}>User</th>
+                          <th style={{width: '120px'}}>Status</th>
+                          <th style={{width: '140px'}}>Subscribed</th>
+                          <th style={{width: '140px'}}>Expires</th>
+                          <th style={{width: '100px'}}>Days Left</th>
+                          <th style={{width: '150px'}}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allSubscriptions.map(user => (
+                          <tr key={user._id}>
+                            <td style={{width: '250px'}}>
+                              <div className="admin-user-cell">
+                                <img src={user.picture || '/default-avatar.png'} alt="" className="admin-table-avatar" />
+                                <div>
+                                  <div className="admin-user-name">{user.name}</div>
+                                  <div className="admin-user-email">{user.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{width: '120px'}}>
+                              <span className={`admin-status-badge ${user.subscriptionStatus} ${user.isPaused ? 'paused' : ''}`}>
+                                {user.subscriptionStatus === 'active' && (user.isPaused ? 'Paused' : 'Active')}
+                                {user.subscriptionStatus === 'expired' && 'Expired'}
+                                {user.subscriptionStatus === 'pending' && 'Pending'}
+                              </span>
+                            </td>
+                            <td style={{width: '140px'}}>
+                              {user.subscriptionDate ? formatDate(user.subscriptionDate) : '-'}
+                            </td>
+                            <td style={{width: '140px'}}>
+                              {user.subscriptionExpiry ? formatDate(user.subscriptionExpiry) : '-'}
+                            </td>
+                            <td style={{width: '100px'}}>
+                              <span className={`admin-days-left ${user.daysLeft <= 30 ? 'warning' : user.daysLeft <= 7 ? 'danger' : 'normal'}`}>
+                                {user.subscriptionStatus === 'active' ? `${user.daysLeft} days` : '-'}
+                              </span>
+                            </td>
+                            <td style={{width: '150px'}}>
+                              <div className="admin-table-actions">
+                                {user.subscriptionStatus === 'active' && (
+                                  user.isPaused ? (
+                                    <button 
+                                      className="admin-action-btn resume"
+                                      onClick={() => resumeSubscription(user._id, user.name)}
+                                      disabled={processingSubscription === user._id}
+                                      title="Resume subscription"
+                                    >
+                                      {processingSubscription === user._id ? '⏳' : '▶️'}
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      className="admin-action-btn pause"
+                                      onClick={() => pauseSubscription(user._id, user.name)}
+                                      disabled={processingSubscription === user._id}
+                                      title="Pause subscription"
+                                    >
+                                      {processingSubscription === user._id ? '⏳' : '⏸️'}
+                                    </button>
+                                  )
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-            ) : pendingSubscriptions.length === 0 ? (
-              <div className="admin-empty-state">
-                <div className="admin-empty-icon">✅</div>
-                <h3>No Pending Subscriptions</h3>
-                <p>All subscription requests have been processed.</p>
-              </div>
-            ) : (
-              <div className="admin-subscriptions-grid">
-                {pendingSubscriptions.map(user => (
-                  <div key={user._id} className="admin-subscription-card">
-                    <div className="admin-subscription-header">
-                      <img src={user.picture || '/default-avatar.png'} alt="" className="admin-subscription-avatar" />
-                      <div className="admin-subscription-info">
-                        <h4>{user.name}</h4>
-                        <p>{user.email}</p>
-                        <span className="admin-subscription-date">Submitted: {formatDate(user.createdAt)}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="admin-subscription-screenshot">
-                      <h5>Payment Screenshot</h5>
-                      {user.paymentScreenshot ? (
-                        <div className="admin-screenshot-container">
-                          <img 
-                            src={user.paymentScreenshot} 
-                            alt="Payment Screenshot" 
-                            onClick={() => setImagePreview(user.paymentScreenshot)}
-                          />
-                          <button className="admin-view-btn" onClick={() => setImagePreview(user.paymentScreenshot)}>
-                            🔍 View Full Size
+            )}
+
+            {/* Pending Requests Tab */}
+            {subscriptionTab === 'pending' && (
+              <div className="admin-tab-content">
+                {subscriptionsLoading ? (
+                  <div className="admin-loader-container">
+                    <div className="admin-spinner-large"></div>
+                    <p>Loading subscriptions...</p>
+                  </div>
+                ) : pendingSubscriptions.length === 0 ? (
+                  <div className="admin-empty-state">
+                    <div className="admin-empty-icon">✅</div>
+                    <h3>No Pending Subscriptions</h3>
+                    <p>All subscription requests have been processed.</p>
+                  </div>
+                ) : (
+                  <div className="admin-subscriptions-grid">
+                    {pendingSubscriptions.map(user => (
+                      <div key={user._id} className="admin-subscription-card">
+                        <div className="admin-subscription-header">
+                          <img src={user.picture || '/default-avatar.png'} alt="" className="admin-subscription-avatar" />
+                          <div className="admin-subscription-info">
+                            <h4>{user.name}</h4>
+                            <p>{user.email}</p>
+                            <span className="admin-subscription-date">Submitted: {formatDate(user.createdAt)}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="admin-subscription-screenshot">
+                          <h5>Payment Screenshot</h5>
+                          {user.paymentScreenshot ? (
+                            <div className="admin-screenshot-container">
+                              <img 
+                                src={user.paymentScreenshot} 
+                                alt="Payment Screenshot" 
+                                onClick={() => setImagePreview(user.paymentScreenshot)}
+                              />
+                              <button className="admin-view-btn" onClick={() => setImagePreview(user.paymentScreenshot)}>
+                                🔍 View Full Size
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="admin-no-screenshot">
+                              <span>⚠️</span>
+                              <p>No screenshot uploaded</p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="admin-subscription-actions">
+                          <button 
+                            className="admin-btn approve" 
+                            onClick={() => approveSubscription(user._id, user.name)}
+                            disabled={processingSubscription === user._id}
+                          >
+                            {processingSubscription === user._id ? <><span className="admin-spinner"></span> Processing...</> : 'Approve'}
+                          </button>
+                          <button 
+                            className="admin-btn reject" 
+                            onClick={() => rejectSubscription(user._id)}
+                            disabled={processingSubscription === user._id}
+                          >
+                            Reject
                           </button>
                         </div>
-                      ) : (
-                        <div className="admin-no-screenshot">
-                          <span>⚠️</span>
-                          <p>No screenshot uploaded</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="admin-subscription-actions">
-                      <button 
-                        className="admin-btn approve" 
-                        onClick={() => approveSubscription(user._id, user.name)}
-                        disabled={processingSubscription === user._id}
-                      >
-                        {processingSubscription === user._id ? <><span className="admin-spinner"></span> Processing...</> : 'Approve'}
-                      </button>
-                      <button 
-                        className="admin-btn reject" 
-                        onClick={() => rejectSubscription(user._id)}
-                        disabled={processingSubscription === user._id}
-                      >
-                        Reject
-                      </button>
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>

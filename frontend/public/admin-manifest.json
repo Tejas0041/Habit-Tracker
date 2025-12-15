@@ -1,0 +1,59 @@
+{
+  "short_name": "Admin - HT",
+  "name": "Admin - Habit Tracker",
+  "description": "Admin panel for Habit Tracker - manage users, subscriptions, and analytics",
+  "icons": [
+    {
+      "src": "habits.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/admin",
+  "display": "standalone",
+  "theme_color": "#ef4444",
+  "background_color": "#0f172a",
+  "orientation": "portrait",
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View admin dashboard with analytics",
+      "url": "/admin?tab=dashboard",
+      "icons": [
+        {
+          "src": "habits.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "short_name": "Subscriptions",
+      "description": "Manage pending subscriptions",
+      "url": "/admin?tab=subscriptions",
+      "icons": [
+        {
+          "src": "habits.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "short_name": "Users",
+      "description": "Manage user accounts",
+      "url": "/admin?tab=users",
+      "icons": [
+        {
+          "src": "habits.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "categories": ["productivity", "business", "utilities"],
+  "lang": "en",
+  "dir": "ltr"
+}

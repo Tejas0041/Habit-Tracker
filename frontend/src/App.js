@@ -641,7 +641,6 @@ function App() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [tabsVisible, setTabsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
   const [serverReady, setServerReady] = useState(false);
   const [checkingServer, setCheckingServer] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -689,14 +688,13 @@ function App() {
         case 'stats':
           setActiveTab('analytics');
           break;
-        case 'widgets':
-          setActiveTab('widgets');
+        default:
           break;
       }
       // Clean URL after handling action
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [user]);
+  }, []);
 
   // Update app badge with today's progress
   useEffect(() => {
@@ -732,11 +730,14 @@ function App() {
       setDeferredPrompt(e);
     };
     
+    const handleResize = () => setIsMobileDevice(checkMobile());
+    
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-    window.addEventListener('resize', () => setIsMobileDevice(checkMobile()));
+    window.addEventListener('resize', handleResize);
     
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('resize', handleResize);
     };
   }, []);
   
@@ -786,18 +787,19 @@ function App() {
   
   // Scroll behavior for tabs bar
   useEffect(() => {
+    let lastScroll = 0;
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
-      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+      if (currentScrollY > lastScroll && currentScrollY > 100) {
         setTabsVisible(false); // scrolling down
       } else {
         setTabsVisible(true); // scrolling up
       }
-      setLastScrollY(currentScrollY);
+      lastScroll = currentScrollY;
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  }, []);
   const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
   const showToast = (message, type = 'error') => { setToast({ show: true, message, type }); setTimeout(() => setToast({ show: false, message: '', type: 'error' }), 3000); };
   const showPopup = (title, message, onConfirm, onCancel = null, type = 'confirm') => setPopup({ isOpen: true, title, message, onConfirm, onCancel, type });
@@ -817,9 +819,10 @@ function App() {
     setTimeout(() => setToast({ show: false, message: '', type: 'error' }), 5000);
   }, []);
 
-  // Set up global API error handler for security errors
+  // Set up global API error handler for security errors - must be set immediately
   useEffect(() => {
     api.setGlobalErrorHandler((error) => {
+      console.log('Global error handler:', error.code, error.message);
       if (error.forceLogout) {
         forceLogout(error.message || 'Session expired. Please login again.');
       } else if (error.subscriptionError) {
@@ -863,7 +866,7 @@ function App() {
           streakData[h._id] = streakResult || { currentStreak: 0, longestStreak: 0 }; 
         } catch (e) {
           if (e.code === 'ACCOUNT_DEACTIVATED') throw e;
-          if (e.code === 'NO_SUBSCRIPTION' || e.code === 'SUBSCRIPTION_PENDING' || e.code === 'SUBSCRIPTION_EXPIRED') throw e;
+          if (e.code === 'NO_SUBSCRIPTION' || e.code === 'SUBSCRIPTION_PENDING' || e.code === 'SUBSCRIPTION_EXPIRED' || e.code === 'SUBSCRIPTION_PAUSED') throw e;
           console.error(`Failed to load streak for ${h.name}:`, e);
           streakData[h._id] = { currentStreak: 0, longestStreak: 0 };
         }
@@ -879,6 +882,8 @@ function App() {
         forceLogout('Your payment is under verification. Please try again after 1 hour.');
       } else if (err.code === 'SUBSCRIPTION_EXPIRED') {
         forceLogout('Your subscription has expired. Please renew to continue.');
+      } else if (err.code === 'SUBSCRIPTION_PAUSED') {
+        forceLogout('Your subscription has been paused by admin. Please contact support.');
       }
     } finally {
       setLoading(false);
@@ -929,7 +934,7 @@ function App() {
       if (!storedToken) return;
       
       try {
-        const profile = await api.get('/auth/profile', storedToken);
+        const profile = await api.getRaw('/auth/profile', storedToken);
         if (profile) {
           setUser(profile);
           setSubscriptionStatus(profile.subscriptionStatus || 'none');
@@ -943,8 +948,31 @@ function App() {
           }
         }
       } catch (err) {
-        // Error handler will take care of logout if needed
-        console.error('Token verification failed:', err);
+        const errorCode = err.code || '';
+        const errorMsg = err.message || '';
+        
+        // Handle specific errors - force logout with appropriate message
+        const doLogout = (message) => {
+          setToken(null);
+          setUser(null);
+          setHabits([]);
+          setTracking({});
+          setSleepData([]);
+          setSubscriptionStatus('none');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setToast({ show: true, message, type: 'error' });
+          setTimeout(() => setToast({ show: false, message: '', type: 'error' }), 5000);
+        };
+        
+        if (errorCode === 'SUBSCRIPTION_PAUSED' || errorMsg.toLowerCase().includes('paused')) {
+          doLogout('Your subscription has been paused by admin. Please contact support.');
+        } else if (errorCode === 'ACCOUNT_DEACTIVATED' || errorMsg.toLowerCase().includes('deactivated')) {
+          doLogout('Your account has been deactivated. Please contact support.');
+        } else if (['USER_NOT_FOUND', 'INVALID_TOKEN', 'TOKEN_EXPIRED', 'ACCESS_DENIED', 'AUTH_ERROR'].includes(errorCode)) {
+          doLogout(errorMsg || 'Session expired. Please login again.');
+        }
+        // For other errors, don't logout - might be network issue
       }
     };
     
@@ -955,7 +983,7 @@ function App() {
   const handleLogin = async (cred) => { 
     setLoading(true);
     try { 
-      const res = await api.post('/auth/google', { credential: cred.credential }); 
+      const res = await api.postRaw('/auth/google', { credential: cred.credential }); 
       
       // Check subscription status BEFORE setting token
       if (res.user.subscriptionStatus === 'none') {
@@ -983,10 +1011,17 @@ function App() {
         setTimeout(() => setToast({ show: false, message: '', type: 'error' }), 5000);
       }
     } catch (err) { 
-      if (err.code === 'ACCOUNT_DEACTIVATED' || (err.message && err.message.includes('deactivated'))) {
+      // Handle specific error codes from backend
+      const errorCode = err.code || '';
+      const errorMsg = err.message || 'Login failed. Please try again.';
+      
+      if (errorCode === 'ACCOUNT_DEACTIVATED' || errorMsg.toLowerCase().includes('deactivated')) {
         showToast('Your account has been deactivated. Please contact support.', 'error');
+      } else if (errorCode === 'SUBSCRIPTION_PAUSED' || errorMsg.toLowerCase().includes('paused')) {
+        showToast('Your subscription has been paused by admin. Please contact support.', 'error');
       } else {
-        showToast('Login failed', 'error');
+        // Show the actual error message from backend
+        showToast(errorMsg, 'error');
       }
     } finally {
       setLoading(false);
@@ -1422,8 +1457,12 @@ function App() {
           <div className="hero-content">
             <h1>Build Better Habits,<br/>One Day at a Time</h1>
             <p className="hero-subtitle">Track your daily habits, visualize your progress, and achieve your goals with our simple yet powerful habit tracking app.</p>
-            <div className="pricing-badge">
-              <span className="price-highlight">₹49/year</span>
+            <div className="pricing-badge offer-badge">
+              <div className="offer-tag">🎉 Limited Offer!</div>
+              <div className="price-container">
+                <span className="price-original">₹49</span>
+                <span className="price-highlight">₹29/year</span>
+              </div>
               <span className="price-subtext">One-time payment • 365 days access</span>
             </div>
             <div className="hero-login">
@@ -1443,6 +1482,40 @@ function App() {
               <div className="hero-habit-row"><span className="hero-check done">✓</span> Read 30 mins</div>
               <div className="hero-habit-row"><span className="hero-check done">✓</span> Meditation</div>
               <div className="hero-habit-row"><span className="hero-check"></span> Learn coding</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="screenshots-section">
+          <h2>Beautiful in Every Mode</h2>
+          <p className="screenshots-subtitle">Switch between light and dark themes anytime</p>
+          
+          <div className="theme-showcase">
+            <div className="theme-card dark-theme">
+              <div className="theme-label">🌙 Dark Mode</div>
+              <img src="/screenshots/habit_tracker_dark_mode.png" alt="Dark Mode" />
+            </div>
+            <div className="theme-card light-theme">
+              <div className="theme-label">☀️ Light Mode</div>
+              <img src="/screenshots/habit_tracker_light_mode.png" alt="Light Mode" />
+            </div>
+          </div>
+
+          <div className="more-features">
+            <h3>More Powerful Features</h3>
+            <div className="features-row">
+              <div className="feature-img">
+                <img src="/screenshots/habits_overview_dark_mode.png" alt="Overview" />
+                <span>📊 Weekly Overview</span>
+              </div>
+              <div className="feature-img">
+                <img src="/screenshots/habits_stats_dark_mode.png" alt="Stats" />
+                <span>📈 Statistics</span>
+              </div>
+              <div className="feature-img">
+                <img src="/screenshots/sleeptrackerstatsdark_mode.png" alt="Sleep" />
+                <span>😴 Sleep Tracker</span>
+              </div>
             </div>
           </div>
         </section>
@@ -1486,8 +1559,12 @@ function App() {
         <section className="cta-section">
           <h2>Start Your Journey Today</h2>
           <p>Join thousands of users building better habits every day.</p>
-          <div className="pricing-badge-cta">
-            <span className="price-highlight">₹49/year</span>
+          <div className="pricing-badge-cta offer-badge">
+            <div className="offer-tag">🎉 Limited Offer!</div>
+            <div className="price-container">
+              <span className="price-original">₹49</span>
+              <span className="price-highlight">₹29/year</span>
+            </div>
             <span className="price-subtext">Affordable • Effective • Life-changing</span>
           </div>
           <div className="cta-login">
@@ -1692,7 +1769,7 @@ function App() {
           <button className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>📊 Overview</button>
           <button className={activeTab === 'stats' ? 'active' : ''} onClick={() => setActiveTab('stats')}>📈 Stats</button>
           <button className={activeTab === 'sleep' ? 'active' : ''} onClick={() => setActiveTab('sleep')}>🛌 Sleep</button>
-          <button className={activeTab === 'widgets' ? 'active' : ''} onClick={() => setActiveTab('widgets')}>🔲 Widgets</button>
+
         </nav>
 
         <div className="main-content">
@@ -2214,89 +2291,6 @@ function App() {
             </div>
           )}
 
-          {activeTab === 'widgets' && (
-            <div className="widgets-view">
-              <div className="page-header">
-                <div>
-                  <h2>Widgets Dashboard</h2>
-                  <p className="page-subtitle">View all your habit widgets in one place</p>
-                </div>
-              </div>
-              
-              <div className="widgets-grid">
-                <div className="widget-card">
-                  <div className="widget-frame">
-                    <iframe 
-                      src="/widgets/progress-widget.html" 
-                      title="Progress Widget"
-                      className="widget-iframe"
-                      frameBorder="0"
-                    />
-                  </div>
-                  <div className="widget-info">
-                    <h3>Today's Progress</h3>
-                    <p>Track your daily habit completion with a visual progress circle</p>
-                  </div>
-                </div>
-                
-                <div className="widget-card">
-                  <div className="widget-frame">
-                    <iframe 
-                      src="/widgets/stats-widget.html" 
-                      title="Stats Widget"
-                      className="widget-iframe"
-                      frameBorder="0"
-                    />
-                  </div>
-                  <div className="widget-info">
-                    <h3>Weekly Statistics</h3>
-                    <p>View your weekly habit trends with bar charts and analytics</p>
-                  </div>
-                </div>
-                
-                <div className="widget-card">
-                  <div className="widget-frame">
-                    <iframe 
-                      src="/widgets/sleep-widget.html" 
-                      title="Sleep Widget"
-                      className="widget-iframe"
-                      frameBorder="0"
-                    />
-                  </div>
-                  <div className="widget-info">
-                    <h3>Sleep Tracker</h3>
-                    <p>Monitor your sleep patterns, quality, and weekly trends</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="widget-instructions">
-                <div className="instruction-card">
-                  <h3>📱 How to Add Widgets to Home Screen</h3>
-                  <div className="instruction-steps">
-                    <div className="instruction-step">
-                      <div className="step-number">1</div>
-                      <div className="step-content">
-                        <strong>Android:</strong> Long-press empty home screen space → Tap "Widgets" → Find "Habit Tracker"
-                      </div>
-                    </div>
-                    <div className="instruction-step">
-                      <div className="step-number">2</div>
-                      <div className="step-content">
-                        <strong>Alternative:</strong> Long-press app icon → Look for "Widgets" option
-                      </div>
-                    </div>
-                    <div className="instruction-step">
-                      <div className="step-number">3</div>
-                      <div className="step-content">
-                        <strong>iOS:</strong> Limited support - use shortcuts instead (long-press app icon)
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
         {showModal && (
           <div className="modal-overlay" onClick={() => setShowModal(false)}>

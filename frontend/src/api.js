@@ -14,7 +14,8 @@ const FORCE_LOGOUT_ERRORS = [
 const SUBSCRIPTION_ERRORS = [
   'NO_SUBSCRIPTION',
   'SUBSCRIPTION_PENDING',
-  'SUBSCRIPTION_EXPIRED'
+  'SUBSCRIPTION_EXPIRED',
+  'SUBSCRIPTION_PAUSED'
 ];
 
 // Global error handler callback (set by App.js)
@@ -72,6 +73,33 @@ const api = {
     });
   },
 
+  // Get without global error handling - for cases where we want to handle errors locally
+  async getRaw(endpoint, token) {
+    const res = await fetch(`${API_URL}${endpoint}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (!res.ok) {
+      let errorData = {};
+      try {
+        errorData = await res.json();
+      } catch (e) {
+        // If JSON parsing fails, try to get text
+        try {
+          const text = await res.text();
+          errorData = { message: text || 'Request failed', error: 'UNKNOWN_ERROR' };
+        } catch (e2) {
+          errorData = { message: 'Request failed', error: 'UNKNOWN_ERROR' };
+        }
+      }
+      const error = new Error(errorData.message || errorData.error || 'Request failed');
+      error.code = errorData.error || 'UNKNOWN_ERROR';
+      error.status = res.status;
+      throw error;
+    }
+    return res.json();
+  },
+
   async post(endpoint, data, token) {
     return handleApiCall(async () => {
       const headers = { 'Content-Type': 'application/json' };
@@ -83,6 +111,35 @@ const api = {
       });
       return handleResponse(res);
     });
+  },
+
+  // Post without global error handling - for login where we want to handle errors locally
+  async postRaw(endpoint, data) {
+    const res = await fetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    
+    if (!res.ok) {
+      let errorData = {};
+      try {
+        errorData = await res.json();
+      } catch (e) {
+        // If JSON parsing fails, try to get text
+        try {
+          const text = await res.text();
+          errorData = { message: text || 'Request failed', error: 'UNKNOWN_ERROR' };
+        } catch (e2) {
+          errorData = { message: 'Request failed', error: 'UNKNOWN_ERROR' };
+        }
+      }
+      const error = new Error(errorData.message || errorData.error || 'Request failed');
+      error.code = errorData.error || 'UNKNOWN_ERROR';
+      error.status = res.status;
+      throw error;
+    }
+    return res.json();
   },
 
   async put(endpoint, data, token) {

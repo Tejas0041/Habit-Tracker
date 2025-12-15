@@ -268,6 +268,46 @@ router.get('/subscriptions/pending', adminAuth, async (req, res) => {
   }
 });
 
+// Get all subscriptions (active, expired, pending)
+router.get('/subscriptions/all', adminAuth, async (req, res) => {
+  try {
+    const allUsers = await User.find({ 
+      subscriptionStatus: { $in: ['active', 'expired', 'pending'] }
+    })
+      .sort({ subscriptionDate: -1 })
+      .select('-googleId');
+    
+    // Calculate days remaining for each user
+    const usersWithDaysLeft = allUsers.map(user => {
+      let daysLeft = 0;
+      if (user.subscriptionStatus === 'active' && user.subscriptionExpiry) {
+        if (!user.isPaused) {
+          // For active subscriptions, calculate from current time
+          const now = new Date();
+          const expiry = new Date(user.subscriptionExpiry);
+          daysLeft = Math.max(0, Math.ceil((expiry - now) / (1000 * 60 * 60 * 24)));
+        } else {
+          // For paused subscriptions, calculate remaining days from pause date
+          if (user.pausedAt) {
+            const pausedAt = new Date(user.pausedAt);
+            const expiry = new Date(user.subscriptionExpiry);
+            daysLeft = Math.max(0, Math.ceil((expiry - pausedAt) / (1000 * 60 * 60 * 24)));
+          }
+        }
+      }
+      
+      return {
+        ...user.toObject(),
+        daysLeft
+      };
+    });
+    
+    res.json({ users: usersWithDaysLeft });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Approve subscription
 router.put('/subscriptions/:id/approve', adminAuth, async (req, res) => {
   try {
@@ -315,6 +355,65 @@ router.put('/subscriptions/:id/reject', adminAuth, async (req, res) => {
     }
     
     res.json({ message: 'Subscription rejected', user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Pause subscription
+router.put('/subscriptions/:id/pause', adminAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    if (user.subscriptionStatus !== 'active') {
+      return res.status(400).json({ error: 'Can only pause active subscriptions' });
+    }
+    
+    if (user.isPaused) {
+      return res.status(400).json({ error: 'Subscription is already paused' });
+    }
+    
+    user.isPaused = true;
+    user.pausedAt = new Date();
+    await user.save();
+    
+    res.json({ message: 'Subscription paused successfully', user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Resume subscription
+router.put('/subscriptions/:id/resume', adminAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    if (user.subscriptionStatus !== 'active') {
+      return res.status(400).json({ error: 'Can only resume active subscriptions' });
+    }
+    
+    if (!user.isPaused) {
+      return res.status(400).json({ error: 'Subscription is not paused' });
+    }
+    
+    // Calculate how long it was paused and extend expiry date
+    const pausedAt = new Date(user.pausedAt);
+    const now = new Date();
+    const pausedDuration = now - pausedAt;
+    
+    if (user.subscriptionExpiry) {
+      const currentExpiry = new Date(user.subscriptionExpiry);
+      const newExpiry = new Date(currentExpiry.getTime() + pausedDuration);
+      user.subscriptionExpiry = newExpiry;
+    }
+    
+    user.isPaused = false;
+    user.pausedAt = null;
+    await user.save();
+    
+    res.json({ message: 'Subscription resumed successfully', user });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

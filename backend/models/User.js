@@ -17,6 +17,8 @@ const userSchema = new mongoose.Schema({
   paymentScreenshot: { type: String },
   subscriptionDate: { type: Date },
   subscriptionExpiry: { type: Date },
+  isPaused: { type: Boolean, default: false },
+  pausedAt: { type: Date },
   createdAt: { type: Date, default: Date.now }
 });
 
