@@ -740,9 +740,16 @@ function App() {
     }
     
     const handleBeforeInstall = (e) => {
+      console.log('beforeinstallprompt event fired!');
       e.preventDefault();
       setDeferredPrompt(e);
     };
+    
+    // Also listen for appinstalled event
+    window.addEventListener('appinstalled', () => {
+      console.log('App was installed');
+      setDeferredPrompt(null);
+    });
     
     const handleResize = () => setIsMobileDevice(checkMobile());
     
