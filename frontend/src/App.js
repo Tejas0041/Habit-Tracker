@@ -1600,7 +1600,6 @@ function App() {
         </section>
 
         <footer className="home-footer">
-          <p>Made by <a href="https://tejaspawar.vercel.app" target="_blank" rel="noopener noreferrer">Tejas Pawar</a></p>
           <p className="footer-contact">Contact: <a href="mailto:healthtracker.tp@gmail.com">healthtracker.tp@gmail.com</a></p>
         </footer>
       </div>
@@ -1710,7 +1709,7 @@ function App() {
         </section>
 
         <footer className="home-footer">
-          <p>Made by <a href="https://tejaspawar.vercel.app" target="_blank" rel="noopener noreferrer">Tejas Pawar</a></p>
+          <p className="footer-contact">Contact: <a href="mailto:healthtracker.tp@gmail.com">healthtracker.tp@gmail.com</a></p>
         </footer>
       </div>
     </ThemeContext.Provider>
