@@ -114,20 +114,92 @@ router.put('/:id/goal', auth, async (req, res) => {
   try {
     const { year, month, goal } = req.body;
     const habitId = req.params.id;
+    const yearNum = parseInt(year);
+    const monthNum = parseInt(month);
     
     // Verify habit belongs to user
     const habit = await Habit.findOne({ _id: habitId, userId: req.userId });
     if (!habit) return res.status(404).json({ error: 'Habit not found' });
     
-    // Update or create monthly goal for current and future months
-    await MonthlyGoal.findOneAndUpdate(
-      { userId: req.userId, habitId, year, month },
-      { goal },
-      { upsert: true, new: true }
-    );
+    // Get current date in IST
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+    const istDate = new Date(utc + istOffset);
+    const currentYear = istDate.getFullYear();
+    const currentMonth = istDate.getMonth() + 1;
     
-    // Update default goal for future months (on the habit itself)
-    await Habit.findByIdAndUpdate(habitId, { goal });
+    const isCurrentMonth = yearNum === currentYear && monthNum === currentMonth;
+    const isPastMonth = yearNum < currentYear || (yearNum === currentYear && monthNum < currentMonth);
+    
+    if (isPastMonth) {
+      // For past months: only update that specific month, don't affect anything else
+      await MonthlyGoal.findOneAndUpdate(
+        { userId: req.userId, habitId, year: yearNum, month: monthNum },
+        { goal },
+        { upsert: true, new: true }
+      );
+    } else if (isCurrentMonth) {
+      // For current month: preserve old goal for past months, update current and future
+      const oldGoal = habit.goal;
+      
+      // Get existing monthly goal overrides
+      const existingOverrides = await MonthlyGoal.find({
+        userId: req.userId,
+        habitId
+      });
+      const overrideMap = {};
+      existingOverrides.forEach(o => {
+        overrideMap[`${o.year}-${o.month}`] = true;
+      });
+      
+      // Create overrides for past months that don't have one (to preserve old goal)
+      const habitCreatedAt = new Date(habit.createdAt);
+      const currentDate = new Date(yearNum, monthNum - 1, 1);
+      
+      const bulkOps = [];
+      let checkDate = new Date(habitCreatedAt.getFullYear(), habitCreatedAt.getMonth(), 1);
+      
+      while (checkDate < currentDate) {
+        const checkYear = checkDate.getFullYear();
+        const checkMonth = checkDate.getMonth() + 1;
+        const key = `${checkYear}-${checkMonth}`;
+        
+        // Only create override if one doesn't exist for this past month
+        if (!overrideMap[key]) {
+          bulkOps.push({
+            updateOne: {
+              filter: { userId: req.userId, habitId, year: checkYear, month: checkMonth },
+              update: { goal: oldGoal },
+              upsert: true
+            }
+          });
+        }
+        
+        checkDate.setMonth(checkDate.getMonth() + 1);
+      }
+      
+      if (bulkOps.length > 0) {
+        await MonthlyGoal.bulkWrite(bulkOps);
+      }
+      
+      // Update current month
+      await MonthlyGoal.findOneAndUpdate(
+        { userId: req.userId, habitId, year: yearNum, month: monthNum },
+        { goal },
+        { upsert: true, new: true }
+      );
+      
+      // Update default goal (affects future months)
+      await Habit.findByIdAndUpdate(habitId, { goal });
+    } else {
+      // For future months: just update that specific month
+      await MonthlyGoal.findOneAndUpdate(
+        { userId: req.userId, habitId, year: yearNum, month: monthNum },
+        { goal },
+        { upsert: true, new: true }
+      );
+    }
     
     res.json({ message: 'Goal updated', goal });
   } catch (err) {

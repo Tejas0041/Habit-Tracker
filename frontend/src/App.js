@@ -1141,8 +1141,13 @@ function App() {
     const g = parseInt(goal) || 0; 
     const previousHabits = [...habits];
     setHabits(prev => prev.map(h => h._id === habitId ? { ...h, goal: g } : h)); 
+    
+    // Check if editing current month
+    const today = getIndianDate();
+    const isCurrentMonth = year === today.year && month === today.month;
+    
     try {
-      const result = await api.put(`/habits/${habitId}/goal`, { year, month, goal: g }, token);
+      const result = await api.put(`/habits/${habitId}/goal`, { year, month, goal: g, isCurrentMonth }, token);
       if (result === null) {
         setHabits(previousHabits); // Revert on security error
       }

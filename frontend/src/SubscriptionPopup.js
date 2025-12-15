@@ -55,11 +55,17 @@ const SubscriptionPopup = ({ isOpen, onClose, onSubmit, onSkip, user }) => {
         <div className="subscription-content">
           <div className="subscription-pricing">
             <div className="price-tag">
-              <span className="currency">₹</span>
-              <span className="amount">49</span>
-              <span className="period">/year</span>
+              <div className="offer-badge">🎉 Limited Offer!</div>
+              <div className="price-container">
+                <span className="price-original">₹49</span>
+                <div className="price-current">
+                  <span className="currency">₹</span>
+                  <span className="amount">29</span>
+                  <span className="period">/year</span>
+                </div>
+              </div>
             </div>
-            <p className="price-description">One-time payment for 365 days of unlimited habit tracking</p>
+            <p className="price-description">Special launch price - Save ₹20! One-time payment for 365 days</p>
           </div>
 
           <div className="subscription-features">
@@ -78,7 +84,7 @@ const SubscriptionPopup = ({ isOpen, onClose, onSubmit, onSkip, user }) => {
             <h3>Payment Instructions:</h3>
             <ol>
               <li>Scan the QR code below or use UPI ID</li>
-              <li>Pay ₹49 to complete your subscription</li>
+              <li>Pay ₹29 to complete your subscription</li>
               <li>Upload payment screenshot</li>
               <li>Wait for admin verification (within 1 hour)</li>
             </ol>
