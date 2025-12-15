@@ -1,7 +1,7 @@
 // Service Worker for Habit Tracker PWA
-const CACHE_NAME = 'habit-tracker-v5';
-const STATIC_CACHE = 'habit-tracker-static-v5';
-const API_CACHE = 'habit-tracker-api-v5';
+const CACHE_NAME = 'habit-tracker-v6';
+const STATIC_CACHE = 'habit-tracker-static-v6';
+const API_CACHE = 'habit-tracker-api-v6';
 
 // Files to cache for offline use
 const STATIC_FILES = [
@@ -15,25 +15,25 @@ const STATIC_FILES = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
-      .then(cache => cache.addAll(STATIC_FILES))
+      .then(cache => cache.addAll(STATIC_FILES).catch(() => {}))
+      .then(() => self.skipWaiting())
   );
-  // Don't use skipWaiting() to avoid unexpected page behavior
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    // Clean up old caches
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME && cacheName !== STATIC_CACHE && cacheName !== API_CACHE) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    caches.keys()
+      .then(cacheNames => {
+        return Promise.all(
+          cacheNames.map(cacheName => {
+            if (cacheName !== CACHE_NAME && cacheName !== STATIC_CACHE && cacheName !== API_CACHE) {
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+      .then(() => self.clients.claim())
   );
-  // Don't use clients.claim() to avoid unexpected page behavior
 });
 
 self.addEventListener('fetch', (event) => {

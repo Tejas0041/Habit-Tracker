@@ -722,7 +722,21 @@ function App() {
     
     // Register service worker for PWA
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
+      
+      // Handle service worker updates without forcing reload
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        // Only reload if this is not the first controller
+        if (navigator.serviceWorker.controller) {
+          const lastReload = sessionStorage.getItem('lastSWReload');
+          const now = Date.now();
+          // Prevent reload loop - only reload once per 10 seconds
+          if (!lastReload || now - parseInt(lastReload) > 10000) {
+            sessionStorage.setItem('lastSWReload', now.toString());
+            window.location.reload();
+          }
+        }
+      });
     }
     
     const handleBeforeInstall = (e) => {
