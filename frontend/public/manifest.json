@@ -14,5 +14,142 @@
   "display": "standalone",
   "theme_color": "#10b981",
   "background_color": "#0f172a",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "shortcuts": [
+    {
+      "name": "Quick Add Habit",
+      "short_name": "Add Habit",
+      "description": "Quickly add a new habit",
+      "url": "/?action=add-habit",
+      "icons": [
+        {
+          "src": "icon-add.svg",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Today's Progress",
+      "short_name": "Today",
+      "description": "View today's habit progress",
+      "url": "/?action=today",
+      "icons": [
+        {
+          "src": "icon-today.svg",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Sleep Tracker",
+      "short_name": "Sleep",
+      "description": "Log your sleep",
+      "url": "/?action=sleep",
+      "icons": [
+        {
+          "src": "icon-sleep.svg",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Statistics",
+      "short_name": "Stats",
+      "description": "View your habit statistics",
+      "url": "/?action=stats",
+      "icons": [
+        {
+          "src": "icon-stats.svg",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ],
+  "categories": ["productivity", "health", "lifestyle"],
+  "lang": "en",
+  "dir": "ltr",
+  "widgets": [
+    {
+      "name": "Habit Progress",
+      "short_name": "Progress",
+      "description": "View today's habit completion progress",
+      "tag": "habit-progress",
+      "template": "widgets/progress-widget.html",
+      "ms_ac_template": "widgets/progress-widget.html",
+      "data": "api/widget/progress",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "habits.png",
+          "sizes": "512x512",
+          "label": "Habit progress widget showing completion percentage"
+        }
+      ],
+      "icons": [
+        {
+          "src": "icon-today.svg",
+          "sizes": "72x72",
+          "type": "image/svg+xml"
+        }
+      ],
+      "auth": false,
+      "update": 300
+    },
+    {
+      "name": "Weekly Stats",
+      "short_name": "Stats",
+      "description": "View weekly habit statistics and trends",
+      "tag": "habit-stats",
+      "template": "widgets/stats-widget.html",
+      "ms_ac_template": "widgets/stats-widget.html",
+      "data": "api/widget/stats",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "habits.png",
+          "sizes": "512x512",
+          "label": "Weekly statistics widget with bar chart"
+        }
+      ],
+      "icons": [
+        {
+          "src": "icon-stats.svg",
+          "sizes": "72x72",
+          "type": "image/svg+xml"
+        }
+      ],
+      "auth": false,
+      "update": 600
+    },
+    {
+      "name": "Sleep Tracker",
+      "short_name": "Sleep",
+      "description": "View sleep statistics and weekly trends",
+      "tag": "sleep-tracker",
+      "template": "widgets/sleep-widget.html",
+      "ms_ac_template": "widgets/sleep-widget.html",
+      "data": "api/widget/sleep",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "habits.png",
+          "sizes": "512x512",
+          "label": "Sleep tracker widget with weekly chart and stats"
+        }
+      ],
+      "icons": [
+        {
+          "src": "icon-sleep.svg",
+          "sizes": "72x72",
+          "type": "image/svg+xml"
+        }
+      ],
+      "auth": false,
+      "update": 900
+    }
+  ]
 }

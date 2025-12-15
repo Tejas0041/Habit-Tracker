@@ -12,6 +12,7 @@ const trackingRoutes = require('./routes/tracking');
 const adminRoutes = require('./routes/admin');
 const subscriptionRoutes = require('./routes/subscription');
 const sleepRoutes = require('./routes/sleep');
+const widgetRoutes = require('./routes/widgets');
 
 const app = express();
 
@@ -96,6 +97,7 @@ app.use('/api/tracking', trackingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/sleep', sleepRoutes);
+app.use('/api/widget', widgetRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 

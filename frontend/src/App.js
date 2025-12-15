@@ -670,6 +670,50 @@ function App() {
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('theme', theme); }, [theme]);
   
+  // Handle PWA shortcut actions
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const action = urlParams.get('action');
+    
+    if (action && user) {
+      switch (action) {
+        case 'add-habit':
+          setShowModal(true);
+          break;
+        case 'today':
+          setActiveTab('tracker');
+          break;
+        case 'sleep':
+          setActiveTab('sleep');
+          break;
+        case 'stats':
+          setActiveTab('analytics');
+          break;
+      }
+      // Clean URL after handling action
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [user]);
+
+  // Update app badge with today's progress
+  useEffect(() => {
+    if ('navigator' in window && 'setAppBadge' in navigator && habits.length > 0) {
+      const today = getIndianDate();
+      const todayKey = `${today.year}-${today.month}-${today.day}`;
+      const todayTracking = tracking[todayKey] || {};
+      
+      const completedToday = habits.filter(habit => todayTracking[habit._id] > 0).length;
+      const totalHabits = habits.length;
+      const remaining = totalHabits - completedToday;
+      
+      if (remaining > 0) {
+        navigator.setAppBadge(remaining).catch(() => {});
+      } else {
+        navigator.clearAppBadge().catch(() => {});
+      }
+    }
+  }, [habits, tracking]);
+  
   // PWA Install prompt - mobile only
   useEffect(() => {
     const checkMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 900;

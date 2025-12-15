@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Habit Progress Widget</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+            color: white;
+            border-radius: 16px;
+            overflow: hidden;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .widget-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0;
+        }
+        
+        .widget-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .widget-date {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        .reload-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        
+        .reload-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .reload-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .reload-btn.loading {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .progress-circle {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 16px;
+            position: relative;
+        }
+        
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+        
+        .progress-ring-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.2);
+            stroke-width: 8;
+        }
+        
+        .progress-ring-fill {
+            fill: none;
+            stroke: white;
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-dasharray: 226;
+            stroke-dashoffset: 226;
+            transition: stroke-dashoffset 0.5s ease;
+        }
+        
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 20px;
+            font-weight: 700;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            text-align: center;
+        }
+        
+        .stat {
+            flex: 1;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            display: block;
+        }
+        
+        .stat-label {
+            font-size: 10px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .habits-list {
+            margin-top: 16px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        
+        .habit-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+        
+        .habit-check {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+        }
+        
+        .habit-check.done {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .habit-check.pending {
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="widget-header">
+        <h2 class="widget-title">Today's Progress</h2>
+        <div class="widget-controls">
+            <div class="widget-date" id="date"></div>
+            <button class="reload-btn" id="reload-btn" onclick="loadData()" title="Refresh">
+                🔄
+            </button>
+        </div>
+    </div>
+    
+    <div class="progress-circle">
+        <svg class="progress-ring" width="80" height="80">
+            <circle class="progress-ring-bg" cx="40" cy="40" r="36"/>
+            <circle class="progress-ring-fill" cx="40" cy="40" r="36" id="progress-ring"/>
+        </svg>
+        <div class="progress-text" id="progress-text">0%</div>
+    </div>
+    
+    <div class="stats">
+        <div class="stat">
+            <span class="stat-number" id="completed">0</span>
+            <span class="stat-label">Done</span>
+        </div>
+        <div class="stat">
+            <span class="stat-number" id="total">0</span>
+            <span class="stat-label">Total</span>
+        </div>
+        <div class="stat">
+            <span class="stat-number" id="streak">0</span>
+            <span class="stat-label">Streak</span>
+        </div>
+    </div>
+    
+    <div class="habits-list" id="habits-list"></div>
+
+    <script>
+        // Get today's date
+        const today = new Date();
+        document.getElementById('date').textContent = today.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric' 
+        });
+
+        // Mock data - in real implementation, this would come from your API
+        const mockData = {
+            completed: 3,
+            total: 6,
+            streak: 5,
+            habits: [
+                { name: 'Morning Run', completed: true },
+                { name: 'Meditation', completed: true },
+                { name: 'Read Book', completed: true },
+                { name: 'Drink Water', completed: false },
+                { name: 'Exercise', completed: false },
+                { name: 'Sleep Early', completed: false }
+            ]
+        };
+
+        // Update progress
+        function updateWidget(data) {
+            const percentage = Math.round((data.completed / data.total) * 100);
+            const circumference = 2 * Math.PI * 36;
+            const offset = circumference - (percentage / 100) * circumference;
+            
+            document.getElementById('progress-ring').style.strokeDashoffset = offset;
+            document.getElementById('progress-text').textContent = `${percentage}%`;
+            document.getElementById('completed').textContent = data.completed;
+            document.getElementById('total').textContent = data.total;
+            document.getElementById('streak').textContent = data.streak;
+            
+            // Update habits list
+            const habitsList = document.getElementById('habits-list');
+            habitsList.innerHTML = data.habits.map(habit => `
+                <div class="habit-item">
+                    <div class="habit-check ${habit.completed ? 'done' : 'pending'}">
+                        ${habit.completed ? '✓' : ''}
+                    </div>
+                    <span>${habit.name}</span>
+                </div>
+            `).join('');
+        }
+
+        // Try to fetch real data, fallback to mock
+        async function loadData() {
+            const reloadBtn = document.getElementById('reload-btn');
+            reloadBtn.classList.add('loading');
+            
+            try {
+                // Try to get auth token from parent window or localStorage
+                const token = localStorage.getItem('token') || 
+                             (window.parent && window.parent.localStorage && window.parent.localStorage.getItem('token'));
+                
+                if (token) {
+                    const response = await fetch('/api/widget/progress', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        updateWidget(data);
+                    } else {
+                        updateWidget(mockData);
+                    }
+                } else {
+                    updateWidget(mockData);
+                }
+            } catch (error) {
+                console.log('Failed to load data, using mock:', error);
+                updateWidget(mockData);
+            } finally {
+                reloadBtn.classList.remove('loading');
+            }
+        }
+
+        loadData();
+        
+        // Refresh every 5 minutes
+        setInterval(loadData, 5 * 60 * 1000);
+    </script>
+</body>
+</html>

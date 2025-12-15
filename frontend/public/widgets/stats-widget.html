@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Habit Stats Widget</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            border-radius: 16px;
+            overflow: hidden;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .widget-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0;
+        }
+        
+        .widget-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .reload-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        
+        .reload-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .reload-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .reload-btn.loading {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .chart-container {
+            height: 100px;
+            margin: 16px 0;
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 4px;
+        }
+        
+        .chart-bar {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px 2px 0 0;
+            min-height: 4px;
+            transition: height 0.3s ease;
+            position: relative;
+        }
+        
+        .chart-bar.active {
+            background: white;
+        }
+        
+        .chart-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 20px;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 10px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="widget-header">
+        <h2 class="widget-title">Weekly Stats</h2>
+        <div class="widget-controls">
+            <div class="widget-date" id="week"></div>
+            <button class="reload-btn" id="reload-btn" onclick="loadData()" title="Refresh">
+                🔄
+            </button>
+        </div>
+    </div>
+    
+    <div class="chart-container" id="chart"></div>
+    <div class="chart-labels">
+        <span>Mon</span>
+        <span>Tue</span>
+        <span>Wed</span>
+        <span>Thu</span>
+        <span>Fri</span>
+        <span>Sat</span>
+        <span>Sun</span>
+    </div>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-number" id="weekly-avg">0%</span>
+            <span class="stat-label">Weekly Avg</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number" id="best-day">Mon</span>
+            <span class="stat-label">Best Day</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number" id="total-habits">0</span>
+            <span class="stat-label">Total Habits</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number" id="current-streak">0</span>
+            <span class="stat-label">Current Streak</span>
+        </div>
+    </div>
+
+    <script>
+        // Mock weekly data (0-100% completion for each day)
+        const weeklyData = [85, 92, 78, 95, 88, 72, 90]; // Mon-Sun
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        
+        function updateChart() {
+            const chart = document.getElementById('chart');
+            const maxValue = Math.max(...weeklyData);
+            const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
+            const todayIndex = today === 0 ? 6 : today - 1; // Convert to Mon-Sun index
+            
+            chart.innerHTML = weeklyData.map((value, index) => {
+                const height = (value / maxValue) * 100;
+                const isToday = index === todayIndex;
+                return `<div class="chart-bar ${isToday ? 'active' : ''}" style="height: ${height}%"></div>`;
+            }).join('');
+        }
+        
+        function updateStats() {
+            const weeklyAvg = Math.round(weeklyData.reduce((a, b) => a + b, 0) / weeklyData.length);
+            const bestDayIndex = weeklyData.indexOf(Math.max(...weeklyData));
+            const bestDay = days[bestDayIndex];
+            
+            document.getElementById('weekly-avg').textContent = `${weeklyAvg}%`;
+            document.getElementById('best-day').textContent = bestDay;
+            document.getElementById('total-habits').textContent = '6';
+            document.getElementById('current-streak').textContent = '12';
+            
+            // Update week display
+            const today = new Date();
+            const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 1));
+            document.getElementById('week').textContent = startOfWeek.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+        
+        async function loadData() {
+            const reloadBtn = document.getElementById('reload-btn');
+            reloadBtn.classList.add('loading');
+            
+            try {
+                const token = localStorage.getItem('token') || 
+                             (window.parent && window.parent.localStorage && window.parent.localStorage.getItem('token'));
+                
+                if (token) {
+                    const response = await fetch('/api/widget/stats', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Update with real data
+                        weeklyData.splice(0, weeklyData.length, ...data.weeklyData);
+                        document.getElementById('weekly-avg').textContent = `${data.weeklyAvg}%`;
+                        document.getElementById('best-day').textContent = data.bestDay;
+                        document.getElementById('total-habits').textContent = data.totalHabits;
+                        document.getElementById('current-streak').textContent = data.currentStreak;
+                        updateChart();
+                    } else {
+                        updateChart();
+                        updateStats();
+                    }
+                } else {
+                    updateChart();
+                    updateStats();
+                }
+            } catch (error) {
+                console.log('Failed to load data, using mock:', error);
+                updateChart();
+                updateStats();
+            } finally {
+                reloadBtn.classList.remove('loading');
+            }
+        }
+        
+        loadData();
+        
+        // Refresh every 10 minutes
+        setInterval(loadData, 10 * 60 * 1000);
+    </script>
+</body>
+</html>
