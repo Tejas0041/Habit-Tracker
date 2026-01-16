@@ -25,30 +25,30 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-// Security: Rate limiting - 200 requests per 10 minutes per IP
+// CORS configuration - MUST be before rate limiting
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  credentials: true,
+  exposedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Security: Rate limiting - 500 requests per 10 minutes per IP (more lenient for development)
 const limiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 200,
+  max: 500,
   message: { error: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false
 });
 app.use('/api/', limiter);
 
-// Stricter rate limit for auth routes - 25 requests per 10 minutes
+// Stricter rate limit for auth routes - 50 requests per 10 minutes
 const authLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 25,
+  max: 50,
   message: { error: 'Too many login attempts, please try again later' }
 });
 app.use('/api/auth', authLimiter);
-
-// CORS configuration
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true,
-  exposedHeaders: ['Content-Type', 'Authorization']
-}));
 
 // Body parser with size limit
 app.use(express.json({ limit: '10mb' }));

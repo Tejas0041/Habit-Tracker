@@ -207,6 +207,25 @@ router.put('/:id/goal', auth, async (req, res) => {
   }
 });
 
+// Update score for a habit
+router.put('/:id/score', auth, async (req, res) => {
+  try {
+    const { score } = req.body;
+    const habitId = req.params.id;
+    
+    // Verify habit belongs to user
+    const habit = await Habit.findOne({ _id: habitId, userId: req.userId });
+    if (!habit) return res.status(404).json({ error: 'Habit not found' });
+    
+    // Update score on the habit
+    await Habit.findByIdAndUpdate(habitId, { score: parseInt(score) || 1 });
+    
+    res.json({ message: 'Score updated', score });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Update name for a specific month
 router.put('/:id/name', auth, async (req, res) => {
   try {

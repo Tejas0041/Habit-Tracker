@@ -626,7 +626,7 @@ function App() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [showModal, setShowModal] = useState(false);
-  const [newHabit, setNewHabit] = useState({ name: '', goal: 30 });
+  const [newHabit, setNewHabit] = useState({ name: '', goal: 30, score: 1 });
   const [activeTab, setActiveTab] = useState('tracker');
   const [toast, setToast] = useState({ show: false, message: '', type: 'error' });
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
@@ -664,8 +664,96 @@ function App() {
   const [chartViewType, setChartViewType] = useState('night'); // 'night' or 'nap' for chart
   const [tableViewType, setTableViewType] = useState('night'); // 'night' or 'nap' for table
   const [isEditingEntry, setIsEditingEntry] = useState(false);
+  const [selectedViewDate, setSelectedViewDate] = useState(null); // For viewing score of specific date
+  const [showDatePickerDropdown, setShowDatePickerDropdown] = useState(false);
 
   const daysInMonth = new Date(year, month, 0).getDate();
+  
+  // Get current selected date or today
+  const getSelectedDate = () => {
+    if (selectedViewDate) return selectedViewDate;
+    return getIndianDate();
+  };
+  
+  // Get score for a specific date
+  const getDateScore = (dateObj) => {
+    const { year: y, month: m, day: d } = dateObj;
+    let earned = 0;
+    let total = 0;
+    habits.forEach(h => {
+      const date = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const checked = !!tracking[`${h._id}-${date}`];
+      const score = h.score || 1;
+      total += score;
+      if (checked) earned += score;
+    });
+    return { earned, total };
+  };
+  
+  // Get progress for a specific date
+  const getDateProgress = (dateObj) => {
+    const { year: y, month: m, day: d } = dateObj;
+    let completed = 0;
+    habits.forEach(h => {
+      const date = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      if (tracking[`${h._id}-${date}`]) completed++;
+    });
+    return { completed, total: habits.length };
+  };
+  
+  // Navigate to previous day
+  const goToPrevDay = () => {
+    const current = getSelectedDate();
+    const date = new Date(current.year, current.month - 1, current.day - 1);
+    setSelectedViewDate({ year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() });
+    // Update month/year if needed
+    if (date.getMonth() + 1 !== month || date.getFullYear() !== year) {
+      setMonth(date.getMonth() + 1);
+      setYear(date.getFullYear());
+    }
+  };
+  
+  // Navigate to next day
+  const goToNextDay = () => {
+    const current = getSelectedDate();
+    const today = getIndianDate();
+    // Don't go beyond today
+    if (current.year === today.year && current.month === today.month && current.day >= today.day) return;
+    
+    const date = new Date(current.year, current.month - 1, current.day + 1);
+    // Don't go beyond today
+    if (date > new Date(today.year, today.month - 1, today.day)) return;
+    
+    setSelectedViewDate({ year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() });
+    // Update month/year if needed
+    if (date.getMonth() + 1 !== month || date.getFullYear() !== year) {
+      setMonth(date.getMonth() + 1);
+      setYear(date.getFullYear());
+    }
+  };
+  
+  // Go to today
+  const goToToday = () => {
+    const today = getIndianDate();
+    setSelectedViewDate(null);
+    setMonth(today.month);
+    setYear(today.year);
+  };
+  
+  // Format date for display
+  const formatSelectedDate = (dateObj) => {
+    const { year: y, month: m, day: d } = dateObj;
+    const date = new Date(y, m - 1, d);
+    const dayName = DAYS[date.getDay()];
+    return `${dayName}, ${d} ${MONTHS[m - 1].slice(0, 3)} ${y}`;
+  };
+  
+  // Check if selected date is today
+  const isSelectedToday = () => {
+    const selected = getSelectedDate();
+    const today = getIndianDate();
+    return selected.year === today.year && selected.month === today.month && selected.day === today.day;
+  };
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('theme', theme); }, [theme]);
   
@@ -999,7 +1087,7 @@ function App() {
     
     verifyToken();
   }, []);
-  useEffect(() => { const h = (e) => { if (!e.target.closest('.month-selector')) { setShowMonthDropdown(false); setShowYearInput(false); } }; document.addEventListener('click', h); return () => document.removeEventListener('click', h); }, []);
+  useEffect(() => { const h = (e) => { if (!e.target.closest('.month-selector')) { setShowMonthDropdown(false); setShowYearInput(false); } if (!e.target.closest('.day-selector')) { setShowDatePickerDropdown(false); } }; document.addEventListener('click', h); return () => document.removeEventListener('click', h); }, []);
 
   const handleLogin = async (cred) => { 
     setLoading(true);
@@ -1102,11 +1190,15 @@ function App() {
     const newCompleted = !tracking[key];
     const previousState = tracking[key];
     
+    // Get the habit's score
+    const habit = habits.find(h => h._id === habitId);
+    const habitScore = habit?.score || 1;
+    
     // Optimistically update UI
     setTracking(prev => ({ ...prev, [key]: newCompleted })); 
     
     try {
-      const result = await api.post('/tracking/toggle', { habitId, date, completed: newCompleted }, token);
+      const result = await api.post('/tracking/toggle', { habitId, date, completed: newCompleted, score: habitScore }, token);
       // If null, security error was handled by global handler - don't continue
       if (result === null) {
         setTracking(prev => ({ ...prev, [key]: previousState }));
@@ -1126,9 +1218,9 @@ function App() {
   const addHabit = async () => { 
     if (!newHabit.name.trim()) { showToast('Enter habit name', 'error'); return; } 
     try {
-      const result = await api.post('/habits', newHabit, token);
+      const result = await api.post('/habits', { ...newHabit, score: newHabit.score || 1 }, token);
       if (result === null) return; // Security error handled by global handler
-      setNewHabit({ name: '', goal: 30 }); 
+      setNewHabit({ name: '', goal: 30, score: 1 }); 
       setShowModal(false); 
       loadData(); 
       showToast('Habit added!', 'success'); 
@@ -1154,6 +1246,21 @@ function App() {
     } catch (err) {
       setHabits(previousHabits);
       console.error('Failed to update goal:', err);
+    }
+  };
+
+  const updateScore = async (habitId, score) => { 
+    const s = parseInt(score) || 1; 
+    const previousHabits = [...habits];
+    setHabits(prev => prev.map(h => h._id === habitId ? { ...h, score: s } : h)); 
+    try {
+      const result = await api.put(`/habits/${habitId}/score`, { score: s }, token);
+      if (result === null) {
+        setHabits(previousHabits);
+      }
+    } catch (err) {
+      setHabits(previousHabits);
+      console.error('Failed to update score:', err);
     }
   };
   
@@ -1235,6 +1342,40 @@ function App() {
   const handleYearSubmit = (e) => { e.preventDefault(); const y = parseInt(yearInput); if (y >= 2020 && y <= 2030) setYear(y); setShowYearInput(false); };
   const handlePrevMonth = () => { if (month > 1) setMonth(month - 1); else { setMonth(12); setYear(year - 1); } };
   const handleNextMonth = () => { if (month < 12) setMonth(month + 1); else { setMonth(1); setYear(year + 1); } };
+
+  // Score calculation functions
+  const getTodayScore = () => {
+    const today = getIndianDate();
+    const todayDate = `${today.year}-${String(today.month).padStart(2,'0')}-${String(today.day).padStart(2,'0')}`;
+    let earned = 0, total = 0;
+    habits.forEach(h => {
+      const score = h.score || 1;
+      total += score;
+      if (tracking[`${h._id}-${todayDate}`]) earned += score;
+    });
+    return { earned, total };
+  };
+
+  const getDayScore = (day) => {
+    const date = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    let earned = 0, total = 0;
+    habits.forEach(h => {
+      const score = h.score || 1;
+      total += score;
+      if (tracking[`${h._id}-${date}`]) earned += score;
+    });
+    return { earned, total };
+  };
+
+  const getTodayProgress = () => {
+    const today = getIndianDate();
+    const todayDate = `${today.year}-${String(today.month).padStart(2,'0')}-${String(today.day).padStart(2,'0')}`;
+    let completed = 0;
+    habits.forEach(h => {
+      if (tracking[`${h._id}-${todayDate}`]) completed++;
+    });
+    return { completed, total: habits.length };
+  };
 
   const getDailyData = () => { const data = []; for (let d = 1; d <= daysInMonth; d++) { const date = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`; let c = 0; habits.forEach(h => { if (tracking[`${h._id}-${date}`]) c++; }); data.push({ day: d, dayName: getDayName(d), completed: c, goal: habits.length, left: habits.length - c, week: getWeekNumber(d) }); } return data; };
   const getWeeklyData = () => { const daily = getDailyData(); const weeks = []; for (let w = 0; w < 5; w++) { const days = daily.filter(d => d.week === w); if (!days.length) continue; const c = days.reduce((s, d) => s + d.completed, 0); const t = days.reduce((s, d) => s + d.goal, 0); weeks.push({ name: `Week ${w + 1}`, completed: c, total: t, percent: t ? Math.round((c / t) * 100) : 0, days, startDay: days[0].day, endDay: days[days.length - 1].day }); } return weeks; };
@@ -1821,9 +1962,103 @@ function App() {
                   )}
                 </div>
               </div>
+              
+              {/* Day Navigation & Score */}
+              {!isEditMode && (
+                <div className="day-score-nav">
+                  <div className="day-nav-controls">
+                    <button className="day-nav-btn" onClick={goToPrevDay}>
+                      ← Prev
+                    </button>
+                    <div className="day-selector" onClick={() => setShowDatePickerDropdown(!showDatePickerDropdown)}>
+                      <span className="day-selector-date">{formatSelectedDate(getSelectedDate())}</span>
+                      <span className="day-selector-arrow">▼</span>
+                      {showDatePickerDropdown && (
+                        <div className="day-picker-dropdown" onClick={e => e.stopPropagation()}>
+                          <div className="day-picker-header">
+                            <button onClick={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else { setMonth(month - 1); } }}>◀</button>
+                            <span>{MONTHS[month - 1]} {year}</span>
+                            <button onClick={() => { if (month === 12) { setMonth(1); setYear(year + 1); } else { setMonth(month + 1); } }}>▶</button>
+                          </div>
+                          <div className="day-picker-weekdays">
+                            {DAYS.map(d => <span key={d}>{d.slice(0, 2)}</span>)}
+                          </div>
+                          <div className="day-picker-grid">
+                            {(() => {
+                              const firstDay = new Date(year, month - 1, 1).getDay();
+                              const days = [];
+                              const today = getIndianDate();
+                              // Empty cells for days before month starts
+                              for (let i = 0; i < firstDay; i++) {
+                                days.push(<span key={`empty-${i}`} className="day-picker-empty"></span>);
+                              }
+                              // Days of the month
+                              for (let d = 1; d <= daysInMonth; d++) {
+                                const isFuture = year > today.year || (year === today.year && month > today.month) || (year === today.year && month === today.month && d > today.day);
+                                const isSelected = getSelectedDate().year === year && getSelectedDate().month === month && getSelectedDate().day === d;
+                                const isToday = year === today.year && month === today.month && d === today.day;
+                                days.push(
+                                  <button 
+                                    key={d} 
+                                    className={`day-picker-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''} ${isFuture ? 'future' : ''}`}
+                                    onClick={() => { 
+                                      if (!isFuture) {
+                                        setSelectedViewDate({ year, month, day: d }); 
+                                        setShowDatePickerDropdown(false); 
+                                      }
+                                    }}
+                                    disabled={isFuture}
+                                  >
+                                    {d}
+                                  </button>
+                                );
+                              }
+                              return days;
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <button className="day-nav-btn" onClick={goToNextDay} disabled={isSelectedToday()}>
+                      Next →
+                    </button>
+                    {!isSelectedToday() && (
+                      <button className="day-nav-btn today-btn" onClick={goToToday}>
+                        Today
+                      </button>
+                    )}
+                  </div>
+                  
+                  {habits.length > 0 && (
+                    <div className="day-score-cards">
+                      <div className="score-card">
+                        <div className="score-icon">🎯</div>
+                        <div className="score-info">
+                          <span className="score-label">{isSelectedToday() ? "Today's Score" : "Score"}</span>
+                          <span className="score-value">{getDateScore(getSelectedDate()).earned} / {getDateScore(getSelectedDate()).total}</span>
+                        </div>
+                      </div>
+                      <div className="score-card">
+                        <div className="score-icon">✅</div>
+                        <div className="score-info">
+                          <span className="score-label">Tasks Done</span>
+                          <span className="score-value">{getDateProgress(getSelectedDate()).completed} / {getDateProgress(getSelectedDate()).total}</span>
+                        </div>
+                      </div>
+                      <div className="score-card">
+                        <div className="score-icon">📊</div>
+                        <div className="score-info">
+                          <span className="score-label">Completion</span>
+                          <span className="score-value">{getDateProgress(getSelectedDate()).total > 0 ? Math.round((getDateProgress(getSelectedDate()).completed / getDateProgress(getSelectedDate()).total) * 100) : 0}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="card habits-grid"><div style={{ overflowX: 'auto' }}>
                 <table className="habits-table">
-                  <thead><tr>{isEditMode && <th className="delete-col"></th>}<th className="habit-name-cell">Habit</th><th>Goal</th>{Array.from({ length: daysInMonth }, (_, i) => <th key={i} className={`day-cell ${isFutureDate(year, month, i + 1) ? 'future-day' : ''}`}><div className="day-header"><span className="day-name">{getDayName(i + 1).slice(0, 2)}</span><span className="day-num">{i + 1}</span></div></th>)}<th>Done</th></tr></thead>
+                  <thead><tr>{isEditMode && <th className="delete-col"></th>}<th className="habit-name-cell">Habit</th><th>Goal</th><th className="score-col">Score</th>{Array.from({ length: daysInMonth }, (_, i) => <th key={i} className={`day-cell ${isFutureDate(year, month, i + 1) ? 'future-day' : ''}`}><div className="day-header"><span className="day-name">{getDayName(i + 1).slice(0, 2)}</span><span className="day-num">{i + 1}</span></div></th>)}<th>Done</th></tr></thead>
                   <tbody>{(isEditMode ? editingHabits : habits).map(h => {
                     const editH = isEditMode ? h : null;
                     const habitData = isEditMode ? h : h;
@@ -1864,7 +2099,27 @@ function App() {
                             <div className="habit-name"><span className="habit-color" style={{ background: habitData.color }} />{habitData.name}</div>
                           )}
                         </td>
-                        <td><input type="number" className="goal-input" value={habitData.goal} onChange={e => updateGoal(h._id, e.target.value)} min="0" disabled={isEditMode} /></td>
+                        <td>
+                          <input 
+                            type="number" 
+                            className="goal-input" 
+                            value={habitData.goal} 
+                            onChange={e => updateGoal(h._id, e.target.value)} 
+                            min="0" 
+                            disabled={isEditMode}
+                          />
+                        </td>
+                        <td className="score-col">
+                          <input 
+                            type="number" 
+                            className="score-input" 
+                            value={habitData.score || 1} 
+                            onChange={e => updateScore(h._id, e.target.value)} 
+                            min="1" 
+                            max="100"
+                            disabled={isEditMode}
+                          />
+                        </td>
                         {Array.from({ length: daysInMonth }, (_, i) => { 
                           const date = `${year}-${String(month).padStart(2,'0')}-${String(i + 1).padStart(2,'0')}`; 
                           const checked = !!tracking[`${h._id}-${date}`]; 
@@ -2326,10 +2581,17 @@ function App() {
                   <label>Habit Name</label>
                   <input placeholder="e.g., Morning Exercise" value={newHabit.name} onChange={e => setNewHabit({ ...newHabit, name: e.target.value })} />
                 </div>
-                <div className="modal-form-group">
-                  <label>Monthly Goal (days)</label>
-                  <input type="number" placeholder="30" value={newHabit.goal} onChange={e => setNewHabit({ ...newHabit, goal: parseInt(e.target.value) || 0 })} />
-                  <small>How many days per month do you want to complete this habit?</small>
+                <div className="modal-form-row">
+                  <div className="modal-form-group">
+                    <label>Monthly Goal (days)</label>
+                    <input type="number" placeholder="30" value={newHabit.goal} onChange={e => setNewHabit({ ...newHabit, goal: parseInt(e.target.value) || 0 })} />
+                    <small>Days per month to complete</small>
+                  </div>
+                  <div className="modal-form-group">
+                    <label>Score Points</label>
+                    <input type="number" placeholder="1" min="1" max="100" value={newHabit.score} onChange={e => setNewHabit({ ...newHabit, score: parseInt(e.target.value) || 1 })} />
+                    <small>Points earned when done</small>
+                  </div>
                 </div>
               </div>
               <div className="modal-buttons">

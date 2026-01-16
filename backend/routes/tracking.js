@@ -9,11 +9,11 @@ const router = express.Router();
 
 router.post('/toggle', auth, async (req, res) => {
   try {
-    const { habitId, date, completed } = req.body;
+    const { habitId, date, completed, score } = req.body;
     
     const tracking = await Tracking.findOneAndUpdate(
       { userId: req.userId, habitId, date },
-      { completed },
+      { completed, score: completed ? (score || 0) : 0 },
       { upsert: true, new: true }
     );
     
@@ -101,6 +101,34 @@ router.get('/streaks/:habitId/:year/:month', auth, async (req, res) => {
     res.json({ currentStreak, longestStreak });
   } catch (err) {
     console.error('Streak calculation error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get daily score summary for a month
+router.get('/scores/:year/:month', auth, async (req, res) => {
+  try {
+    const { year, month } = req.params;
+    const startDate = `${year}-${month.padStart(2, '0')}-01`;
+    const endDate = `${year}-${month.padStart(2, '0')}-31`;
+    
+    const trackings = await Tracking.find({
+      userId: req.userId,
+      date: { $gte: startDate, $lte: endDate },
+      completed: true
+    }).lean();
+    
+    // Group scores by date
+    const scoresByDate = {};
+    trackings.forEach(t => {
+      if (!scoresByDate[t.date]) {
+        scoresByDate[t.date] = 0;
+      }
+      scoresByDate[t.date] += t.score || 0;
+    });
+    
+    res.json(scoresByDate);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

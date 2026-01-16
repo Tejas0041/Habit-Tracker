@@ -2077,6 +2077,233 @@ body {
   align-items: center;
 }
 
+/* Tracker Date Navigation */
+.tracker-date-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: var(--card-bg);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+/* Day Score Navigation */
+.day-score-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--card-bg);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+}
+
+.day-nav-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.day-nav-btn {
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.day-nav-btn:hover:not(:disabled) {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.day-nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.day-nav-btn.today-btn {
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  color: white;
+  border: none;
+}
+
+.day-nav-btn.today-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.day-selector {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+  border: 2px solid var(--primary);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.day-selector:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%);
+}
+
+.day-selector-date {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.day-selector-arrow {
+  font-size: 10px;
+  color: var(--primary);
+}
+
+.day-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  min-width: 280px;
+  animation: fadeIn 0.2s ease;
+}
+
+[data-theme="dark"] .day-picker-dropdown {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.day-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.day-picker-header span {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.day-picker-header button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.day-picker-header button:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.day-picker-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.day-picker-weekdays span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px;
+}
+
+.day-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.day-picker-empty {
+  width: 32px;
+  height: 32px;
+}
+
+.day-picker-day {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.day-picker-day:hover:not(:disabled) {
+  background: var(--bg-secondary);
+}
+
+.day-picker-day.today {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.day-picker-day.selected {
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  color: white;
+  font-weight: 700;
+}
+
+.day-picker-day.future {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.day-score-cards {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Goal and Score Text Display */
+.goal-text, .score-text {
+  display: inline-block;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  min-width: 40px;
+  text-align: center;
+}
+
 .card { 
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(20px) saturate(180%);
@@ -2386,6 +2613,69 @@ body {
   cursor: not-allowed;
   opacity: 0.6;
   border-color: transparent;
+}
+
+.score-col { width: 55px; }
+.score-input { 
+  width: 45px; 
+  padding: 6px; 
+  border: 1px solid var(--border-color); 
+  border-radius: 6px; 
+  text-align: center;
+  font-size: 13px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: all 0.2s;
+}
+.score-input:focus { outline: none; border-color: #f59e0b; }
+.score-input:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+  border-color: transparent;
+}
+
+/* Today's Score Summary */
+.today-score-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.score-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px 20px;
+  flex: 1;
+  min-width: 150px;
+}
+
+.score-card .score-icon {
+  font-size: 28px;
+}
+
+.score-card .score-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.score-card .score-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.score-card .score-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .done-cell { font-weight: 700; color: var(--primary); }
@@ -4576,6 +4866,15 @@ body {
 
 .modal-form { display: flex; flex-direction: column; gap: 20px; margin-bottom: 24px; }
 
+.modal-form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.modal-form-row .modal-form-group {
+  flex: 1;
+}
+
 .modal-form-group { display: flex; flex-direction: column; gap: 8px; }
 
 .modal-form-group label {
@@ -4762,6 +5061,11 @@ body {
   .day-cell { width: 24px; }
   .check-box { width: 22px; height: 22px; font-size: 10px; }
   .goal-input { width: 45px; padding: 6px; font-size: 12px; }
+  .score-input { width: 40px; padding: 5px; font-size: 12px; }
+  .today-score-summary { gap: 12px; }
+  .score-card { padding: 12px 16px; min-width: 120px; }
+  .score-card .score-icon { font-size: 24px; }
+  .score-card .score-value { font-size: 18px; }
   .habit-stats-table { font-size: 12px; }
   .habit-stats-table th, .habit-stats-table td { padding: 10px 8px; }
   .daily-bars { height: 80px; }
@@ -4862,6 +5166,56 @@ body {
   .page-header-buttons .cancel-edit-btn,
   .page-header-buttons .save-habits-btn { flex: 1; justify-content: center; min-width: 120px; }
   
+  /* Tracker Date Nav Mobile */
+  .tracker-date-nav {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  
+  .day-score-nav {
+    padding: 12px;
+    gap: 12px;
+  }
+  
+  .day-nav-controls {
+    gap: 8px;
+  }
+  
+  .day-nav-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  
+  .day-selector {
+    padding: 8px 14px;
+  }
+  
+  .day-selector-date {
+    font-size: 13px;
+  }
+  
+  .day-picker-dropdown {
+    min-width: 260px;
+    padding: 12px;
+  }
+  
+  .day-picker-day {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+  
+  .day-score-cards {
+    gap: 8px;
+  }
+  
+  .goal-text, .score-text {
+    padding: 4px 8px;
+    font-size: 11px;
+    min-width: 32px;
+  }
+  
   .card { padding: 16px; border-radius: 12px; }
   .card h3 { font-size: 12px; margin-bottom: 16px; }
   
@@ -4872,6 +5226,12 @@ body {
   .day-cell { width: 20px; }
   .check-box { width: 18px; height: 18px; font-size: 9px; border-radius: 4px; }
   .goal-input { width: 40px; padding: 4px; font-size: 11px; }
+  .score-input { width: 35px; padding: 4px; font-size: 11px; }
+  .today-score-summary { gap: 10px; }
+  .score-card { padding: 10px 12px; min-width: 100px; gap: 8px; }
+  .score-card .score-icon { font-size: 20px; }
+  .score-card .score-label { font-size: 11px; }
+  .score-card .score-value { font-size: 16px; }
   .delete-btn { width: 20px; height: 20px; font-size: 12px; }
   
   .summary-stats { grid-template-columns: repeat(2, 1fr); gap: 12px; }
@@ -4969,6 +5329,12 @@ body {
   .day-header .day-num { font-size: 8px; }
   .check-box { width: 14px; height: 14px; font-size: 7px; border-radius: 3px; }
   .goal-input { width: 32px; padding: 3px; font-size: 10px; }
+  .score-input { width: 28px; padding: 3px; font-size: 10px; }
+  .today-score-summary { gap: 8px; flex-direction: column; }
+  .score-card { padding: 10px; min-width: auto; flex: none; width: 100%; }
+  .score-card .score-icon { font-size: 18px; }
+  .score-card .score-label { font-size: 10px; }
+  .score-card .score-value { font-size: 14px; }
   .done-cell { font-size: 10px; }
   .delete-btn { width: 16px; height: 16px; font-size: 10px; }
   

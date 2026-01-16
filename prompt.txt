@@ -1,0 +1,15 @@
+
+
+I want that, i can assign score for individual tasks, edit them, and checking a box (on today) must add score  for today, and keep and option to view previeous score, and chekcing/unchecking previoud days habit must also update score accordingly, and above on the page, show thfor e score, out of the sum of total scores of that day, also show, number of task/total task
+
+
+
+update schema accordingly
+
+
+
+MAKE SURE THIS THING DOES NOT OCCUR AT ALL
+rs
+
+
+Boxes are not cheking / unchkeing, also, when page reloads, it blinks large no. of time, it must not happen 

@@ -1,7 +1,7 @@
 // Service Worker for Habit Tracker PWA
-const CACHE_NAME = 'habit-tracker-v6';
-const STATIC_CACHE = 'habit-tracker-static-v6';
-const API_CACHE = 'habit-tracker-api-v6';
+const CACHE_NAME = 'habit-tracker-v7';
+const STATIC_CACHE = 'habit-tracker-static-v7';
+const API_CACHE = 'habit-tracker-api-v7';
 
 // Files to cache for offline use
 const STATIC_FILES = [
@@ -40,12 +40,17 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Skip non-GET requests - they can't be cached
+  if (request.method !== 'GET') {
+    return;
+  }
+
   // Handle API requests with network-first strategy
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request)
         .then(response => {
-          // Cache successful API responses
+          // Cache successful GET API responses
           if (response.ok) {
             const responseClone = response.clone();
             caches.open(API_CACHE).then(cache => {
